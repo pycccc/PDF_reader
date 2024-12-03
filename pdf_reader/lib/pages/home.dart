@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../data_structure.dart';
 import 'folder.dart';
 
@@ -66,6 +68,25 @@ class HomePage extends State<PageHome> {
         );
       },
     );
+  }
+
+  Future<void> _loadData() async {
+    final prefs = await SharedPreferences.getInstance();
+    final data = prefs.getString('file_data');
+    if (data != null) {
+      setState(() {
+        items = List<Map<String, dynamic>>.from(json.decode(data));
+      });
+    } else {
+      // 如果沒有資料，初始化一個空列表
+      items = [];
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData(); // 啟動時載入資料
   }
 
   @override
