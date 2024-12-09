@@ -1,40 +1,34 @@
 import 'package:flutter/material.dart';
-import '../data_manager.dart';
-import '../data_structure.dart';
-import 'folder.dart';
+import 'data_manager.dart';
+import 'data_structure.dart';
 
-class PageHome extends StatefulWidget {
-  const PageHome({super.key});
+class Pages extends StatefulWidget {
+  final Widget child; // 子頁面內容
+  final String pageName; // 頁面標題
+
+  const Pages({super.key, required this.pageName, required this.child});
 
   @override
-  HomePage createState() => HomePage();
+  Page createState() => Page();
 }
 
-// 主頁面
-class HomePage extends State<PageHome> {
+class Page extends State<Pages> {
   DataManager dataManager = DataManager();
 
-  bool showAddOptions = false; // 控制圓形按鈕的顯示狀態
-
-  // 新增資料夾
-  void _addFolder(String folderName) {
-    setState(() {
-      dataManager.addFolder(Folder(name: folderName));
-    });
-    dataManager.saveData(); // 同步到本地端
-  }
+  bool showAddOptions = false; // 控制新增檔案按鈕的顯示狀態
 
   // 新增檔案
   void _addFile(String fileName) {
-    setState(() {
-      // TODO
-      dataManager.addFile(File(name: fileName, size: 0));
-    });
-    dataManager.saveData(); // 同步到本地端
+    dataManager.addFile(File(name: fileName, size: 0));
+  }
+
+  // 新增資料夾
+  void _addFolder(String folderName) {
+    dataManager.addFolder(Folder(name: folderName));
   }
 
   // 新增資料夾的彈跳視窗
-  Future<String?> _createFolder(
+  Future<String?> _addItemScreen(
       BuildContext context, String title, String hint) async {
     TextEditingController inputController = TextEditingController();
     return showDialog<String>(
@@ -66,60 +60,22 @@ class HomePage extends State<PageHome> {
   }
 
   @override
-  void initState() {
-    super.initState();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Stack(children: [
       Scaffold(
         appBar: AppBar(
-          title: const Text('所有檔案'),
-          automaticallyImplyLeading: false,
+          title: Text(widget.pageName),
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back),
+            onPressed: () {
+              dataManager.popCurrPath();
+              Navigator.pop(context);
+            },
+          ),
         ),
         body: Stack(
           children: [
-            ListView(
-              children: [
-                // 資料夾部分
-                ...dataManager.homeFolder.folders.map((folder) => ListTile(
-                      leading: const Icon(
-                        Icons.folder,
-                        color: Colors.orange,
-                      ),
-                      title: Text(folder.name),
-                      onTap: () {
-                        setState(() {
-                          showAddOptions = false;
-                        });
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => FolderPage(
-                              folderName: folder.name,
-                            ),
-                          ),
-                        );
-                      },
-                    )),
-
-                // 檔案部分
-                ...dataManager.homeFolder.files.map((file) => ListTile(
-                      leading: Icon(
-                        Icons.insert_drive_file,
-                        color: Colors.red.shade900,
-                      ),
-                      title: Text(file.name),
-                      onTap: () {
-                        // TODO
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                          content: Text("打開檔案：${file.name}"),
-                        ));
-                      },
-                    )),
-              ],
-            ),
+            widget.child, // 子頁面內容
           ],
         ),
 
@@ -185,7 +141,7 @@ class HomePage extends State<PageHome> {
             ),
             onPressed: () async {
               // TODO
-              String? fileName = await _createFolder(context, "新增檔案", "檔案名稱");
+              String? fileName = await _addItemScreen(context, "新增檔案", "檔案名稱");
               if (fileName != null && fileName.trim().isNotEmpty) {
                 _addFile(fileName.trim());
               }
@@ -217,7 +173,7 @@ class HomePage extends State<PageHome> {
             ),
             onPressed: () async {
               String? folderName =
-                  await _createFolder(context, "新增資料夾", "資料夾名稱");
+                  await _addItemScreen(context, "新增資料夾", "資料夾名稱");
               if (folderName != null && folderName.trim().isNotEmpty) {
                 _addFolder(folderName.trim());
               }

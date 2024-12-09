@@ -1,5 +1,6 @@
 import 'package:animated_text_kit/animated_text_kit.dart';
 import 'package:flutter/material.dart';
+import '../data_manager.dart';
 import 'home.dart';
 
 class LoadingPage extends StatefulWidget {
@@ -11,9 +12,11 @@ class LoadingPage extends StatefulWidget {
 
 class _LoadingPageState extends State<LoadingPage> {
   bool isLoaded = false;
+  DataManager dataManager = DataManager();
 
   @override
   Widget build(BuildContext context) {
+    dataManager.loadData();
     return (Scaffold(
         backgroundColor: Colors.blue,
         body: GestureDetector(
