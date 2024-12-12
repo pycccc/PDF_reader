@@ -1,7 +1,7 @@
 import 'package:animated_text_kit/animated_text_kit.dart';
 import 'package:flutter/material.dart';
 import '../data_manager.dart';
-import 'home.dart';
+import 'page.dart';
 
 class LoadingPage extends StatefulWidget {
   const LoadingPage({super.key});
@@ -16,16 +16,18 @@ class _LoadingPageState extends State<LoadingPage> {
 
   @override
   Widget build(BuildContext context) {
-    dataManager.loadData();
+    dataManager.loadData(); // 載入本地端資料
+
     return (Scaffold(
         backgroundColor: Colors.blue,
         body: GestureDetector(
             behavior: HitTestBehavior.opaque, // 確保捕捉空白點擊
             onTap: () {
+              // 進入主頁面
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) {
-                  return const PageHome();
+                  return const HomePage();
                 }),
               );
             },

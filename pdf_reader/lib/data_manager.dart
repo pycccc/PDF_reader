@@ -73,7 +73,7 @@ class DataManager {
 
   // 移除一個 path 階層 (ex: home/page1/page2 --> home/page1)
   void popCurrPath() {
-    currentPath.removeLast();
+    if (currentPath.isNotEmpty) currentPath.removeLast();
   }
 
   // 新增一個 path 階層 (ex: home/page1 --> home/page1/currFolderName)
@@ -81,7 +81,7 @@ class DataManager {
     currentPath.add(currFolderName);
   }
 
-  // 獲得該 page 的資料
+  // 獲得當前路徑頁面的資料
   Folder getPageFolder() {
     Folder curr = homeFolder;
     for (int loc = 0; loc < currentPath.length; loc++) {
@@ -89,6 +89,7 @@ class DataManager {
           curr.folders.indexWhere((folder) => folder.name == currentPath[loc]);
       if (dest < 0) {
         print("[Error] Get path folder failed.");
+        clearCurrPath();
         return Folder(name: "error");
       }
       curr = curr.folders[dest];

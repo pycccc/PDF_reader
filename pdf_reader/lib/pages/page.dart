@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'data_manager.dart';
-import 'data_structure.dart';
+import '../data_manager.dart';
+import '../data_structure.dart';
 
 class Pages extends StatefulWidget {
   final Widget child; // 子頁面內容
@@ -12,19 +12,47 @@ class Pages extends StatefulWidget {
   Page createState() => Page();
 }
 
+// 點進資料夾的頁面模板
 class Page extends State<Pages> {
   DataManager dataManager = DataManager();
 
   bool showAddOptions = false; // 控制新增檔案按鈕的顯示狀態
 
+  // 重新載入頁面
+  void _reload() {
+    String currFolderName = dataManager.getPageFolder().name;
+    dataManager.popCurrPath();
+    Navigator.pop(context);
+
+    if (dataManager.getPageFolder() != dataManager.homeFolder) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => HomePage(
+            folderName: currFolderName,
+          ),
+        ),
+      );
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) {
+          return const HomePage();
+        }),
+      );
+    }
+  }
+
   // 新增檔案
   void _addFile(String fileName) {
     dataManager.addFile(File(name: fileName, size: 0));
+    _reload();
   }
 
   // 新增資料夾
   void _addFolder(String folderName) {
     dataManager.addFolder(Folder(name: folderName));
+    _reload();
   }
 
   // 新增資料夾的彈跳視窗
@@ -65,13 +93,20 @@ class Page extends State<Pages> {
       Scaffold(
         appBar: AppBar(
           title: Text(widget.pageName),
-          leading: IconButton(
-            icon: Icon(Icons.arrow_back),
-            onPressed: () {
-              dataManager.popCurrPath();
-              Navigator.pop(context);
-            },
-          ),
+          automaticallyImplyLeading:
+              (dataManager.getPageFolder() == dataManager.homeFolder)
+                  ? false
+                  : true,
+          leading: (dataManager.getPageFolder() == dataManager.homeFolder)
+              ? null
+              : IconButton(
+                  // 返回上一頁的按鈕
+                  icon: Icon(Icons.arrow_back),
+                  onPressed: () {
+                    dataManager.popCurrPath();
+                    Navigator.pop(context);
+                  },
+                ),
         ),
         body: Stack(
           children: [
@@ -184,5 +219,126 @@ class Page extends State<Pages> {
           ),
         ),
     ]);
+  }
+}
+
+// 點進資料夾的頁面
+class FolderPage extends StatelessWidget {
+  const FolderPage({
+    super.key,
+    required this.folderName,
+  });
+  final String folderName;
+
+  @override
+  Widget build(BuildContext context) {
+    DataManager dataManager = DataManager();
+
+    // 獲得新頁面路徑畫面的資料夾內容
+    dataManager.addCurrPath(folderName);
+    Folder currFolder = dataManager.getPageFolder();
+
+    // 回傳子頁面內容
+    return Pages(
+      pageName: folderName,
+      child: ListView(
+        children: [
+          // 資料夾部分
+          ...currFolder.folders.map((folder) => ListTile(
+                leading: const Icon(
+                  Icons.folder,
+                  color: Colors.orange,
+                ),
+                title: Text(folder.name),
+                onTap: () {
+                  // 跳轉到點擊的資料夾頁面
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => FolderPage(
+                        folderName: folder.name,
+                      ),
+                    ),
+                  );
+                },
+              )),
+
+          // 檔案部分
+          ...currFolder.files.map((file) => ListTile(
+                leading: Icon(
+                  Icons.insert_drive_file,
+                  color: Colors.red.shade900,
+                ),
+                title: Text(file.name),
+                onTap: () {
+                  // TODO
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text("打開檔案：${file.name}"),
+                  ));
+                },
+              )),
+        ],
+      ),
+    );
+  }
+}
+
+// 主頁面
+class HomePage extends StatelessWidget {
+  const HomePage({
+    super.key,
+    folderName,
+  });
+  final String folderName = "所有檔案";
+
+  @override
+  Widget build(BuildContext context) {
+    DataManager dataManager = DataManager();
+
+    // 獲得新頁面路徑畫面的資料夾內容
+    Folder currFolder = dataManager.getPageFolder();
+
+    // 回傳子頁面內容
+    return Pages(
+      pageName: folderName,
+      child: ListView(
+        children: [
+          // 資料夾部分
+          ...currFolder.folders.map((folder) => ListTile(
+                leading: const Icon(
+                  Icons.folder,
+                  color: Colors.orange,
+                ),
+                title: Text(folder.name),
+                onTap: () {
+                  // 跳轉到點擊的資料夾頁面
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => FolderPage(
+                        folderName: folder.name,
+                      ),
+                    ),
+                  );
+                },
+              )),
+
+          // 檔案部分
+          ...currFolder.files.map((file) => ListTile(
+                leading: Icon(
+                  Icons.insert_drive_file,
+                  color: Colors.red.shade900,
+                ),
+                title: Text(file.name),
+                onTap: () {
+                  // TODO
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text("打開檔案：${file.name}"),
+                  ));
+                },
+              )),
+        ],
+      ),
+    );
   }
 }
