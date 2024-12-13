@@ -1,4 +1,7 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
 import '../data_manager.dart';
 import '../data_structure.dart';
 
@@ -34,6 +37,54 @@ Future<String?> _addItemScreen(
       );
     },
   );
+}
+
+// 建立資料夾並獲取路徑
+Future<Directory> _getOrCreatePdfReaderDirectory() async {
+  // 獲取應用文件目錄
+  final Directory appDocDir = await getApplicationDocumentsDirectory();
+  // 建立或獲取 `pdf_reader` 資料夾
+  final Directory pdfReaderDir = Directory('${appDocDir.path}/pdf_reader');
+  if (!await pdfReaderDir.exists()) {
+    await pdfReaderDir.create(recursive: true); // 遞迴建立資料夾
+  }
+  return pdfReaderDir;
+}
+
+// 打開檔案選擇器
+Future<String> _pickFile() async {
+  // 打開檔案選擇器
+  FilePickerResult? result = await FilePicker.platform.pickFiles(
+    type: FileType.any, // 根據需求可限定檔案類型
+  );
+
+  if (result != null && result.files.single.path != null) {
+    String fileName = result.files.single.name;
+    File selectedFile = File(result.files.single.path!);
+
+    // 將檔案轉為 PDF (此處假設您只存原檔案，不實際轉為 PDF)
+    File pdfFile = await _saveFileToLocalDirectory(selectedFile, fileName);
+
+    // 存到本地
+    dataManager.addFile(Document(name: fileName, path: pdfFile.path));
+    return "succ";
+  } else {
+    print("no such directory or file");
+    return "error";
+  }
+}
+
+// 將檔案儲存到本地資料夾
+Future<File> _saveFileToLocalDirectory(File file, String newFileName) async {
+  // 獲取應用的文件目錄
+  // 獲取 `pdf_reader` 資料夾路徑
+  Directory pdfReaderDir = await _getOrCreatePdfReaderDirectory();
+  String newFilePath = '${pdfReaderDir.path}/$newFileName';
+
+  print("newFilePath = " + newFilePath);
+
+  // 複製檔案到新位置
+  return await file.copy(newFilePath);
 }
 
 // 顯示功能選單
@@ -121,9 +172,10 @@ class Page extends State<Pages> {
   }
 
   // 新增檔案
-  void _addFile(String fileName) {
-    dataManager.addFile(File(name: fileName, size: 0));
-    _reload();
+  void _addFile() async {
+    await _pickFile().then((s) {
+      _reload();
+    });
   }
 
   // 新增資料夾
@@ -220,11 +272,7 @@ class Page extends State<Pages> {
               ),
             ),
             onPressed: () async {
-              // TODO
-              String? fileName = await _addItemScreen(context, "新增檔案", "檔案名稱");
-              if (fileName != null && fileName.trim().isNotEmpty) {
-                _addFile(fileName.trim());
-              }
+              _addFile();
               setState(() {
                 showAddOptions = false; // 點擊後收起按鈕
               });

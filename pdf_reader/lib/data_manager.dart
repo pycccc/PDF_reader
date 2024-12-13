@@ -34,7 +34,7 @@ class DataManager {
   }
 
   // 新增檔案
-  void addFile(File fileToAdd) {
+  void addFile(Document fileToAdd) {
     Folder curr = homeFolder;
 
     for (int loc = 0; loc < currentPath.length; loc++) {

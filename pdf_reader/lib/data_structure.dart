@@ -11,12 +11,12 @@ abstract class Data {
 }
 
 // 定義檔案類
-class File extends Data {
-  int size; // 檔案大小（以 byte 為單位）
+class Document extends Data {
+  String path;
 
-  File({
+  Document({
     required String name,
-    required this.size,
+    required this.path,
   }) : super(name: name, type: "file");
 
   @override
@@ -24,14 +24,14 @@ class File extends Data {
     return {
       'name': name,
       'type': type,
-      'size': size,
+      'path': path,
     };
   }
 
-  static File fromJson(Map<String, dynamic> json) {
-    return File(
+  static Document fromJson(Map<String, dynamic> json) {
+    return Document(
       name: json['name'],
-      size: json['size'],
+      path: json['path'],
     );
   }
 }
@@ -39,12 +39,12 @@ class File extends Data {
 // 定義資料夾類
 class Folder extends Data {
   List<Folder> folders; // 資料夾內的內容（子資料夾）
-  List<File> files; // 資料夾內的內容（檔案）
+  List<Document> files; // 資料夾內的內容（檔案）
 
   Folder({
     required String name,
     List<Folder>? folders, // 可選參數
-    List<File>? files, // 可選參數
+    List<Document>? files, // 可選參數
   })  : folders = folders ?? [], // 如果未提供，初始化為空列表
         files = files ?? [], // 如果未提供，初始化為空列表
         super(name: name, type: "folder");
@@ -67,8 +67,8 @@ class Folder extends Data {
         .toList();
 
     // 解析資料夾中的檔案
-    List<File> files = (json['files'] as List)
-        .map((fileJson) => File.fromJson(fileJson))
+    List<Document> files = (json['files'] as List)
+        .map((fileJson) => Document.fromJson(fileJson))
         .toList();
 
     // 回傳 Folder 物件
