@@ -2,6 +2,83 @@ import 'package:flutter/material.dart';
 import '../data_manager.dart';
 import '../data_structure.dart';
 
+DataManager dataManager = DataManager();
+
+// 新增資料夾的彈跳視窗
+Future<String?> _addItemScreen(
+    BuildContext context, String title, String hint) async {
+  TextEditingController inputController = TextEditingController();
+  return showDialog<String>(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: inputController,
+          decoration: InputDecoration(hintText: hint),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop(null);
+            },
+            child: const Text("取消"),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop(inputController.text);
+            },
+            child: const Text("確認"),
+          ),
+        ],
+      );
+    },
+  );
+}
+
+// 顯示功能選單
+void _showMenu(context, Data item) {
+  bool isFolder = (item.type == "folder") ? true : false;
+
+  showModalBottomSheet(
+    context: context,
+    builder: (context) {
+      return Wrap(
+        children: [
+          ListTile(
+            title: Text("刪除"),
+            onTap: () {
+              Navigator.pop(context);
+              // 執行刪除操作
+              if (isFolder)
+                ; // DeleteFolder();
+              else
+                ; // DeleteFile();
+              // TODO
+            },
+          ),
+          ListTile(
+            title: Text("修改名稱"),
+            onTap: () {
+              Navigator.pop(context);
+              // 執行修改名稱操作
+              // TODO
+            },
+          ),
+          ListTile(
+            title: Text("移動"),
+            onTap: () {
+              Navigator.pop(context);
+              // TODO
+            },
+          ),
+        ],
+      );
+    },
+  );
+}
+
+// 頁面建立
 class Pages extends StatefulWidget {
   final Widget child; // 子頁面內容
   final String pageName; // 頁面標題
@@ -14,26 +91,26 @@ class Pages extends StatefulWidget {
 
 // 點進資料夾的頁面模板
 class Page extends State<Pages> {
-  DataManager dataManager = DataManager();
-
   bool showAddOptions = false; // 控制新增檔案按鈕的顯示狀態
 
   // 重新載入頁面
   void _reload() {
     String currFolderName = dataManager.getPageFolder().name;
-    dataManager.popCurrPath();
-    Navigator.pop(context);
 
     if (dataManager.getPageFolder() != dataManager.homeFolder) {
+      dataManager.popCurrPath();
+      Navigator.pop(context);
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => HomePage(
+          builder: (context) => FolderPage(
             folderName: currFolderName,
           ),
         ),
       );
     } else {
+      dataManager.clearCurrPath();
+      Navigator.pop(context);
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) {
@@ -53,38 +130,6 @@ class Page extends State<Pages> {
   void _addFolder(String folderName) {
     dataManager.addFolder(Folder(name: folderName));
     _reload();
-  }
-
-  // 新增資料夾的彈跳視窗
-  Future<String?> _addItemScreen(
-      BuildContext context, String title, String hint) async {
-    TextEditingController inputController = TextEditingController();
-    return showDialog<String>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text(title),
-          content: TextField(
-            controller: inputController,
-            decoration: InputDecoration(hintText: hint),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop(null);
-              },
-              child: const Text("取消"),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop(inputController.text);
-              },
-              child: const Text("確認"),
-            ),
-          ],
-        );
-      },
-    );
   }
 
   @override
@@ -261,6 +306,9 @@ class FolderPage extends StatelessWidget {
                     ),
                   );
                 },
+                onLongPress: () {
+                  _showMenu(context, folder);
+                },
               )),
 
           // 檔案部分
@@ -275,6 +323,9 @@ class FolderPage extends StatelessWidget {
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                     content: Text("打開檔案：${file.name}"),
                   ));
+                },
+                onLongPress: () {
+                  _showMenu(context, file);
                 },
               )),
         ],
@@ -321,6 +372,9 @@ class HomePage extends StatelessWidget {
                     ),
                   );
                 },
+                onLongPress: () {
+                  _showMenu(context, folder);
+                },
               )),
 
           // 檔案部分
@@ -335,6 +389,9 @@ class HomePage extends StatelessWidget {
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                     content: Text("打開檔案：${file.name}"),
                   ));
+                },
+                onLongPress: () {
+                  _showMenu(context, file);
                 },
               )),
         ],
