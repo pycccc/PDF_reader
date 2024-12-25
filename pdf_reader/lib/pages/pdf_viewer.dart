@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 class PdfViewPage extends StatefulWidget {
   final String filePath; // PDF 檔案的路徑
@@ -17,75 +18,138 @@ class PdfViewPage extends StatefulWidget {
 }
 
 class _PdfViewPageState extends State<PdfViewPage> {
-  // PDF Viewer Controller: 用來控制 PDF 的放大縮小、搜尋等功能
   final PdfViewerController _pdfViewerController = PdfViewerController();
-  // 儲存搜尋結果
-  PdfTextSearchResult _searchResult = PdfTextSearchResult();
-
-  // 用來暫存搜尋字串、輸入的縮放比例
   final TextEditingController _searchController = TextEditingController();
-  final TextEditingController _zoomController = TextEditingController(text: "100"); // 預設 100%
+  final TextEditingController _zoomController = TextEditingController(text: "100");
 
-  // 目前頁面上的 SnackBar
-  ScaffoldFeatureController<SnackBar, SnackBarClosedReason>? _snackBar;
+  PdfTextSearchResult _searchResult = PdfTextSearchResult();
+  bool _isPdfLoaded = false;
 
-  // 當搜尋結束時 (找到幾個結果)
-  void _onSearchComplete(PdfTextSearchResult result) {
-    setState(() {
-      _searchResult = result;
-    });
-    // 移除舊的提示
-    _snackBar?.close();
-    // 若有找到，顯示找到幾項
-    if (result.totalInstanceCount > 0) {
-      _snackBar = ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("找到 ${result.totalInstanceCount} 項符合結果")),
-      );
-    } else {
-      // 沒找到
-      _snackBar = ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("找不到相符的文字")),
-      );
-    }
+  // ★ 1) 用來保存「搜尋到的文字清單」(忽略大小寫) ★
+  List<String> _searchMatches = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(_onSearchTextChanged);
   }
 
-  // 執行搜尋
-  void _searchText() async {
-    String keyword = _searchController.text.trim();
-    if (keyword.isNotEmpty) {
-      // 先清除之前的搜尋結果
-      _searchResult.clear();
-      // 進行搜尋
-      PdfTextSearchResult result = await _pdfViewerController.searchText(
+  @override
+  void dispose() {
+    _searchController.removeListener(_onSearchTextChanged);
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  /// 搜尋功能
+  Future<void> _searchText() async {
+    final keyword = _searchController.text.trim();
+    if (keyword.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("請輸入搜尋關鍵字")),
+      );
+      return;
+    }
+    //
+    // // 如果之前搜尋過，先清除舊結果
+    // if (_searchResult.hasResult) {
+    //   _searchResult.clear();
+    // }
+    _searchMatches.clear(); // 清空「匹配文字」清單
+
+    try {
+      // (A) 先透過 Syncfusion PDF Viewer 來搜尋並高亮顯示
+      //     TextSearchOption.none 表示忽略大小寫的搜尋
+      final result = await _pdfViewerController.searchText(
         keyword,
-        // 匹配模式 (ex: caseSensitive, wholeWord, 等)
       );
-      _onSearchComplete(result);
+      print('搜尋結果: hasResult=${result.hasResult}, totalInstanceCount=${result.totalInstanceCount}');
+
+      setState(() {
+        _searchResult = result;
+      });
+
+      // (B) 額外自己打開 PDF，將所有「實際符合的字串」（忽略大小寫）存入 _searchMatches
+      final fileBytes = await File(widget.filePath).readAsBytes();
+      final PdfDocument document = PdfDocument(inputBytes: fileBytes);
+
+      final lowerKeyword = keyword.toLowerCase();
+      for (int pageIndex = 0; pageIndex < document.pages.count; pageIndex++) {
+        // 抓該頁的文字
+        final pageText = PdfTextExtractor(document)
+            .extractText(startPageIndex: pageIndex, endPageIndex: pageIndex);
+        if (pageText == null) continue;
+
+        final lowerPageText = pageText.toLowerCase();
+        int startIndex = 0;
+        while (true) {
+          final foundIndex = lowerPageText.indexOf(lowerKeyword, startIndex);
+          if (foundIndex == -1) {
+            break;
+          }
+          // 截取出「實際匹配」的原字串
+          final matchedText = pageText.substring(foundIndex, foundIndex + keyword.length);
+          _searchMatches.add(matchedText);
+
+          startIndex = foundIndex + keyword.length;
+        }
+      }
+
+      // 根據 Syncfusion 回傳的筆數 or 自己搜到的清單做提示
+      final foundCount = _searchMatches.length;
+      if (foundCount > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("找到 $foundCount 項符合結果")),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("找不到相符的文字")),
+        );
+      }
+
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("搜尋發生錯誤: $e")),
+      );
     }
   }
 
-  // 顯示下一個搜尋結果
+  /// 顯示下一個搜尋結果
   void _searchNext() {
     if (_searchResult.hasResult) {
       _searchResult.nextInstance();
     }
   }
 
-  // 顯示上一個搜尋結果
+  /// 顯示上一個搜尋結果
   void _searchPrevious() {
     if (_searchResult.hasResult) {
       _searchResult.previousInstance();
     }
   }
+  //消除上一次搜尋結果
+  void _clearSearchHighlight() {
+    if (_searchResult.hasResult) {
+      _searchResult.clear(); // 清除搜尋結果的 Highlight
+      setState(() {
+        _searchMatches.clear(); // 清除匹配結果清單
+      });
+    }
+  }
 
-  // 變更縮放
+  //監聽搜尋框的變化
+  void _onSearchTextChanged() {
+    if (_searchController.text.trim().isEmpty) {
+      _clearSearchHighlight();
+    }
+  }
+
+  /// 變更縮放比例
   void _applyZoom() {
-    // 嘗試把輸入框的值轉成 double
-    String zoomInput = _zoomController.text.trim();
-    double? zoomValue = double.tryParse(zoomInput);
+    final zoomInput = _zoomController.text.trim();
+    final zoomValue = double.tryParse(zoomInput);
     if (zoomValue != null && zoomValue > 0) {
       setState(() {
-        // Syncfusion 的 zoomLevel = 1.0 代表 100%
         _pdfViewerController.zoomLevel = zoomValue / 100.0;
       });
     } else {
@@ -105,31 +169,26 @@ class _PdfViewPageState extends State<PdfViewPage> {
       ),
       body: Column(
         children: [
-          // 上方工具列
+          // 🔍 搜尋工具列
           Container(
             color: Colors.grey[300],
             padding: const EdgeInsets.symmetric(horizontal: 8.0),
             child: Row(
               children: [
-                // 搜尋輸入框
                 Expanded(
                   child: TextField(
                     controller: _searchController,
                     decoration: const InputDecoration(
                       hintText: "搜尋文字...",
                       border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(vertical: 5, horizontal: 8),
                     ),
                   ),
                 ),
                 IconButton(
-                  onPressed: _searchText,
+                  onPressed: _isPdfLoaded ? _searchText : null,
                   icon: const Icon(Icons.search),
                   tooltip: "搜尋",
                 ),
-                const SizedBox(width: 8),
-
-                // 上一個、下一個搜尋結果
                 IconButton(
                   onPressed: _searchPrevious,
                   icon: const Icon(Icons.arrow_upward),
@@ -140,24 +199,32 @@ class _PdfViewPageState extends State<PdfViewPage> {
                   icon: const Icon(Icons.arrow_downward),
                   tooltip: "下一個結果",
                 ),
-
-                const SizedBox(width: 12),
               ],
             ),
           ),
 
-          // PDF Viewer
+          // 📄 PDF Viewer
           Expanded(
             child: SfPdfViewer.file(
               file,
               controller: _pdfViewerController,
-              enableTextSelection: true, // 支援選取文字
-              canShowScrollHead: true,   // 顯示滾動條
-              canShowScrollStatus: true, // 顯示頁數
+              enableTextSelection: true,
+              canShowScrollHead: true,
+              canShowScrollStatus: true,
+              onDocumentLoaded: (PdfDocumentLoadedDetails details) {
+                setState(() {
+                  _isPdfLoaded = true;
+                });
+              },
+              onDocumentLoadFailed: (PdfDocumentLoadFailedDetails details) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text("PDF 載入失敗: ${details.error}")),
+                );
+              },
             ),
           ),
 
-          // 下方工具列：放大/縮小、輸入縮放比例
+          // 🔍 縮放工具列
           Container(
             color: Colors.grey[200],
             padding: const EdgeInsets.all(8.0),
@@ -166,7 +233,6 @@ class _PdfViewPageState extends State<PdfViewPage> {
                 // 縮小按鈕
                 IconButton(
                   onPressed: () {
-                    // 目前 zoomLevel + step
                     double newZoom = (_pdfViewerController.zoomLevel - 0.1).clamp(0.1, 10.0);
                     setState(() {
                       _pdfViewerController.zoomLevel = newZoom;
@@ -213,116 +279,3 @@ class _PdfViewPageState extends State<PdfViewPage> {
     );
   }
 }
-
-
-
-// import 'package:flutter/material.dart';
-// import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
-// import 'dart:io';
-//
-// class PDFViewerPage extends StatefulWidget {
-//   final String filePath;
-//
-//   const PDFViewerPage({super.key, required this.filePath});
-//
-//   @override
-//   State<PDFViewerPage> createState() => _PDFViewerPageState();
-// }
-//
-// class _PDFViewerPageState extends State<PDFViewerPage> {
-//   final GlobalKey<SfPdfViewerState> _pdfViewerKey = GlobalKey();
-//   final PdfViewerController _pdfViewerController = PdfViewerController();
-//   double _zoomLevel = 1.0; // 縮放比例
-//   final TextEditingController _zoomController = TextEditingController();
-//
-//   @override
-//   void initState() {
-//     super.initState();
-//     _zoomController.text = '100'; // 預設縮放為100%
-//   }
-//
-//   // 放大功能（顯示提示）
-//   void _zoomIn() {
-//     ScaffoldMessenger.of(context).showSnackBar(
-//       const SnackBar(
-//         content: Text('使用雙指手勢進行放大'),
-//       ),
-//     );
-//   }
-//
-//   // 縮小功能（顯示提示）
-//   void _zoomOut() {
-//     ScaffoldMessenger.of(context).showSnackBar(
-//       const SnackBar(
-//         content: Text('使用雙指手勢進行縮小'),
-//       ),
-//     );
-//   }
-//
-//   // 自訂縮放百分比（顯示提示）
-//   void _setZoom(String value) {
-//     ScaffoldMessenger.of(context).showSnackBar(
-//       const SnackBar(
-//         content: Text('無法透過程式設計調整縮放比例，請使用手勢進行縮放'),
-//       ),
-//     );
-//   }
-//
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       appBar: AppBar(
-//         title: const Text('檢視 PDF'),
-//         actions: [
-//           IconButton(
-//             icon: const Icon(Icons.search),
-//             onPressed: () {
-//               // 開啟 PDF Viewer 的內建搜尋功能
-//               _pdfViewerKey.currentState?.openBookmarkView();
-//             },
-//           ),
-//         ],
-//       ),
-//       body: Column(
-//         children: [
-//           // 放大/縮小控制
-//           Row(
-//             mainAxisAlignment: MainAxisAlignment.center,
-//             children: [
-//               IconButton(
-//                 icon: const Icon(Icons.zoom_in),
-//                 onPressed: _zoomIn,
-//               ),
-//               IconButton(
-//                 icon: const Icon(Icons.zoom_out),
-//                 onPressed: _zoomOut,
-//               ),
-//               SizedBox(
-//                 width: 80,
-//                 child: TextField(
-//                   controller: _zoomController,
-//                   keyboardType: TextInputType.number,
-//                   decoration: const InputDecoration(
-//                     labelText: '縮放 (%)',
-//                   ),
-//                   onSubmitted: _setZoom,
-//                 ),
-//               ),
-//             ],
-//           ),
-//           // PDF 檢視器
-//           Expanded(
-//             child: SfPdfViewer.file(
-//               File(widget.filePath),
-//               key: _pdfViewerKey,
-//               canShowScrollHead: true,
-//               canShowScrollStatus: true,
-//               canShowPaginationDialog: true,
-//             ),
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-// }
