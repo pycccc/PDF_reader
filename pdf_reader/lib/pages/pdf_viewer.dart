@@ -284,7 +284,9 @@ class _PdfViewPageState extends State<PdfViewPage> {
             child: SfPdfViewer.file(
               file,
               controller: _pdfViewerController,
+              // 隱藏內建的文字選取功能表，但保留文字選取功能
               enableTextSelection: true,
+              canShowTextSelectionMenu : false,
               canShowScrollHead: true,
               canShowScrollStatus: true,
               onTextSelectionChanged: (PdfTextSelectionChangedDetails details) {
