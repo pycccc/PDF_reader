@@ -20,10 +20,13 @@ class PdfViewPage extends StatefulWidget {
 class _PdfViewPageState extends State<PdfViewPage> {
   final PdfViewerController _pdfViewerController = PdfViewerController();
   final TextEditingController _searchController = TextEditingController();
-  final TextEditingController _zoomController = TextEditingController(text: "100");
+  final TextEditingController _zoomController =
+      TextEditingController(text: "100");
 
   PdfTextSearchResult _searchResult = PdfTextSearchResult();
   bool _isPdfLoaded = false;
+  OverlayEntry? _overlayEntry; // 用於顯示翻譯結果
+  String? _selectedText; // 選取的文字
 
   // ★ 1) 用來保存「搜尋到的文字清單」(忽略大小寫) ★
   List<String> _searchMatches = [];
@@ -38,6 +41,7 @@ class _PdfViewPageState extends State<PdfViewPage> {
   void dispose() {
     _searchController.removeListener(_onSearchTextChanged);
     _searchController.dispose();
+    _hideOverlay(); // 隱藏翻譯結果的 Overlay
     super.dispose();
   }
 
@@ -63,7 +67,8 @@ class _PdfViewPageState extends State<PdfViewPage> {
       final result = await _pdfViewerController.searchText(
         keyword,
       );
-      print('搜尋結果: hasResult=${result.hasResult}, totalInstanceCount=${result.totalInstanceCount}');
+      print(
+          '搜尋結果: hasResult=${result.hasResult}, totalInstanceCount=${result.totalInstanceCount}');
 
       setState(() {
         _searchResult = result;
@@ -88,7 +93,8 @@ class _PdfViewPageState extends State<PdfViewPage> {
             break;
           }
           // 截取出「實際匹配」的原字串
-          final matchedText = pageText.substring(foundIndex, foundIndex + keyword.length);
+          final matchedText =
+              pageText.substring(foundIndex, foundIndex + keyword.length);
           _searchMatches.add(matchedText);
 
           startIndex = foundIndex + keyword.length;
@@ -106,7 +112,6 @@ class _PdfViewPageState extends State<PdfViewPage> {
           const SnackBar(content: Text("找不到相符的文字")),
         );
       }
-
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("搜尋發生錯誤: $e")),
@@ -127,6 +132,7 @@ class _PdfViewPageState extends State<PdfViewPage> {
       _searchResult.previousInstance();
     }
   }
+
   //消除上一次搜尋結果
   void _clearSearchHighlight() {
     if (_searchResult.hasResult) {
@@ -157,6 +163,76 @@ class _PdfViewPageState extends State<PdfViewPage> {
         const SnackBar(content: Text("請輸入有效的數字")),
       );
     }
+  }
+
+  /// 顯示翻譯結果的 Overlay
+  void _showOverlay(Rect? region, String text) {
+    _hideOverlay(); // 隱藏舊的 Overlay
+
+    final overlay = Overlay.of(context);
+    if (region != null && overlay != null) {
+      _overlayEntry = OverlayEntry(
+        builder: (context) {
+          return Positioned(
+            top: region.bottom + 10, // 調整位置，顯示在功能表下方
+            left: region.left,
+            child: Material(
+              elevation: 4,
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8.0),
+              child: Container(
+                padding: const EdgeInsets.all(8.0),
+                constraints: const BoxConstraints(maxWidth: 200), // 限制最大寬度
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '翻譯結果',
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold, color: Colors.black),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _translateToChinese(text),
+                      style: const TextStyle(color: Colors.black),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: _hideOverlay,
+                      child: const Text("關閉",
+                          style: TextStyle(color: Colors.blue)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      );
+
+      overlay.insert(_overlayEntry!);
+    }
+  }
+
+  /// 隱藏翻譯結果的 Overlay
+  void _hideOverlay() {
+    if (_overlayEntry != null) {
+      _overlayEntry!.remove();
+      _overlayEntry = null;
+    }
+  }
+
+  /// 模擬將選取的文字翻譯成中文
+  String _translateToChinese(String text) {
+    // 模擬翻譯，實際可以接 API，例如 Google 翻譯 API
+    Map<String, String> mockTranslations = {
+      "equipment": "設備",
+      "flexibility": "靈活性",
+      "security": "安全性",
+    };
+
+    // 如果有對應翻譯，返回中文，否則原樣返回
+    return mockTranslations[text.toLowerCase()] ?? "翻譯後：$text";
   }
 
   @override
@@ -211,6 +287,15 @@ class _PdfViewPageState extends State<PdfViewPage> {
               enableTextSelection: true,
               canShowScrollHead: true,
               canShowScrollStatus: true,
+              onTextSelectionChanged: (PdfTextSelectionChangedDetails details) {
+                if (details.selectedText != null &&
+                    details.selectedText!.trim().isNotEmpty) {
+                  _showOverlay(
+                      details.globalSelectedRegion, details.selectedText!);
+                } else {
+                  _hideOverlay();
+                }
+              },
               onDocumentLoaded: (PdfDocumentLoadedDetails details) {
                 setState(() {
                   _isPdfLoaded = true;
@@ -233,7 +318,8 @@ class _PdfViewPageState extends State<PdfViewPage> {
                 // 縮小按鈕
                 IconButton(
                   onPressed: () {
-                    double newZoom = (_pdfViewerController.zoomLevel - 0.1).clamp(0.1, 10.0);
+                    double newZoom =
+                        (_pdfViewerController.zoomLevel - 0.1).clamp(0.1, 10.0);
                     setState(() {
                       _pdfViewerController.zoomLevel = newZoom;
                       _zoomController.text = (newZoom * 100).toStringAsFixed(0);
@@ -261,7 +347,8 @@ class _PdfViewPageState extends State<PdfViewPage> {
                 // 放大按鈕
                 IconButton(
                   onPressed: () {
-                    double newZoom = (_pdfViewerController.zoomLevel + 0.1).clamp(0.1, 10.0);
+                    double newZoom =
+                        (_pdfViewerController.zoomLevel + 0.1).clamp(0.1, 10.0);
                     setState(() {
                       _pdfViewerController.zoomLevel = newZoom;
                       _zoomController.text = (newZoom * 100).toStringAsFixed(0);
