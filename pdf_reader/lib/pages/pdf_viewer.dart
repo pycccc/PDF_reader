@@ -27,6 +27,8 @@ class _PdfViewPageState extends State<PdfViewPage> {
   bool _isPdfLoaded = false;
   OverlayEntry? _overlayEntry; // 用於顯示翻譯結果
   String? _selectedText; // 選取的文字
+  int _rotationAngle = 0; // 用於追踪旋轉角度 (0°, 90°, 180°, 270°)
+  late File _currentFile; // 當前顯示的 PDF 文件
 
   // ★ 1) 用來保存「搜尋到的文字清單」(忽略大小寫) ★
   List<String> _searchMatches = [];
@@ -34,6 +36,7 @@ class _PdfViewPageState extends State<PdfViewPage> {
   @override
   void initState() {
     super.initState();
+    _currentFile = File(widget.filePath); // 初始化 _currentFile
     _searchController.addListener(_onSearchTextChanged);
   }
 
@@ -43,6 +46,44 @@ class _PdfViewPageState extends State<PdfViewPage> {
     _searchController.dispose();
     _hideOverlay(); // 隱藏翻譯結果的 Overlay
     super.dispose();
+  }
+
+  /// 旋轉 PDF 並保存到本地
+  Future<File> _rotatePdf(File inputPdf, int pageNumber, int angle) async {
+    final PdfDocument document =
+        PdfDocument(inputBytes: inputPdf.readAsBytesSync());
+
+    // 找到指定頁面，計算新旋轉角度
+    final PdfPage page = document.pages[pageNumber - 1];
+    final currentRotation = page.rotation.index * 90;
+    final newRotation = (currentRotation + angle) % 360;
+    page.rotation = PdfPageRotateAngle.values[newRotation ~/ 90];
+
+    final List<int> bytes = await document.save();
+    document.dispose();
+
+    await inputPdf.writeAsBytes(bytes);
+    return inputPdf;
+  }
+
+  /// 按下旋轉按鈕時執行的邏輯
+  void _rotateAndReloadPdf() async {
+    try {
+      final currentPage = _pdfViewerController.pageNumber; // 獲取當前頁面
+      final rotatedFile =
+          await _rotatePdf(_currentFile, currentPage, 90); // 旋轉 PDF
+      setState(() {
+        _currentFile = rotatedFile; // 更新為最新的旋轉後文件
+      });
+      // 等待 Viewer 重新加載後跳轉回原頁面
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _pdfViewerController.jumpToPage(currentPage);
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("旋轉發生錯誤: $e")),
+      );
+    }
   }
 
   /// 搜尋功能
@@ -274,6 +315,11 @@ class _PdfViewPageState extends State<PdfViewPage> {
                   onPressed: _searchNext,
                   icon: const Icon(Icons.arrow_downward),
                   tooltip: "下一個結果",
+                ),
+                IconButton(
+                  icon: const Icon(Icons.rotate_right),
+                  onPressed: _rotateAndReloadPdf,
+                  tooltip: "旋轉頁面",
                 ),
               ],
             ),
