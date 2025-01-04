@@ -90,39 +90,155 @@ Future<String> pickAndConvertFile() async {
   }
 }
 
+void reloadPage(context) {
+  print("reload page");
+  String currFolderName = dataManager.getPageFolder().name;
+
+  if (dataManager.getPageFolder() != dataManager.homeFolder) {
+    dataManager.popCurrPath();
+    Navigator.pop(context);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => FolderPage(
+          folderName: currFolderName,
+        ),
+      ),
+    );
+  } else {
+    dataManager.clearCurrPath();
+    Navigator.pop(context);
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) {
+        return const HomePage();
+      }),
+    );
+  }
+}
+
 // 顯示功能選單
-void _showMenu(context, Data item) {
+void showMenu(context, Data item) {
   bool isFolder = (item.type == "folder") ? true : false;
 
+  isFolder
+      ? showModalBottomSheet(
+          context: context,
+          builder: (context) {
+            return Wrap(
+              children: [
+                ListTile(
+                  // 刪除
+                  title: Text("刪除"),
+                  onTap: () async {
+                    Navigator.pop(context);
+
+                    // 刪除資料夾
+                    dataManager.deleteFolder(Folder(name: item.name.trim()));
+                    if (context.mounted) reloadPage(context);
+                  },
+                ),
+                ListTile(
+                  // 修改名稱
+                  title: Text("修改名稱"),
+                  onTap: () async {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text("修改完成後請重新進入資料夾頁面"),
+                    ));
+
+                    Navigator.pop(context);
+
+                    // 修改資料夾
+                    String? newFolderName =
+                        await _addItemScreen(context, "重新命名資料夾", "資料夾名稱");
+                    if (newFolderName != null &&
+                        newFolderName.trim().isNotEmpty) {
+                      dataManager
+                          .renameFolder(
+                              Folder(name: item.name.trim()), newFolderName)
+                          .then((s) {
+                        if (context.mounted) reloadPage(context);
+                      });
+                    }
+                  },
+                ),
+              ],
+            );
+          },
+        )
+      : showModalBottomSheet(
+          context: context,
+          builder: (context) {
+            return Wrap(
+              children: [
+                ListTile(
+                  // 刪除
+                  title: Text("刪除"),
+                  onTap: () async {
+                    Navigator.pop(context);
+
+                    Folder currFolder = dataManager.getPageFolder();
+                    List<Document> currFiles = currFolder.files;
+                    int fileToDelIdx = currFiles
+                        .indexWhere((file) => file.name == item.name.trim());
+                    await dataManager
+                        .deleteFile(currFiles[fileToDelIdx])
+                        .then((s) {
+                      if (context.mounted) reloadPage(context);
+                    });
+                  },
+                ),
+                ListTile(
+                  // 修改名稱
+                  title: Text("修改名稱"),
+                  onTap: () async {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text("修改完成後請重新進入資料夾頁面"),
+                    ));
+                    Navigator.pop(context);
+                    // 修改檔案
+                    String? newFilename =
+                        await _addItemScreen(context, "重新命名檔案", "檔案名稱");
+                    if (newFilename != null) {
+                      Folder currFolder = dataManager.getPageFolder();
+                      List<Document> currFiles = currFolder.files;
+                      int fileToRenameIdx = currFiles
+                          .indexWhere((file) => file.name == item.name.trim());
+                      if (fileToRenameIdx >= 0) {
+                        await dataManager
+                            .renameFile(currFiles[fileToRenameIdx], newFilename)
+                            .then((s) {
+                          if (context.mounted) reloadPage(context);
+                        });
+                      }
+                    }
+                  },
+                ),
+                ListTile(
+                  title: Text("分割"),
+                  onTap: () {
+                    Navigator.pop(context);
+                    reloadPage(context);
+                    // TODO
+                  },
+                ),
+              ],
+            );
+          },
+        );
+}
+
+void showMergeOption(context, List<Document> filesToMerge) {
   showModalBottomSheet(
     context: context,
     builder: (context) {
       return Wrap(
         children: [
           ListTile(
-            title: Text("刪除"),
-            onTap: () {
+            title: Text("合併"),
+            onTap: () async {
               Navigator.pop(context);
-              // 執行刪除操作
-              if (isFolder)
-                ; // DeleteFolder();
-              else
-                ; // DeleteFile();
-              // TODO
-            },
-          ),
-          ListTile(
-            title: Text("修改名稱"),
-            onTap: () {
-              Navigator.pop(context);
-              // 執行修改名稱操作
-              // TODO
-            },
-          ),
-          ListTile(
-            title: Text("移動"),
-            onTap: () {
-              Navigator.pop(context);
+
               // TODO
             },
           ),
@@ -147,44 +263,34 @@ class Pages extends StatefulWidget {
 class Page extends State<Pages> {
   bool showAddOptions = false; // 控制新增檔案按鈕的顯示狀態
 
-  // 重新載入頁面
-  void _reload() {
-    String currFolderName = dataManager.getPageFolder().name;
+  // 模擬重新載入資料
+  Future<void> _refreshData() async {
+    await Future.delayed(const Duration(seconds: 2)); // 模擬延遲
+    setState(() {
+      String currFolderName = dataManager.getPageFolder().name;
 
-    if (dataManager.getPageFolder() != dataManager.homeFolder) {
-      dataManager.popCurrPath();
-      Navigator.pop(context);
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => FolderPage(
-            folderName: currFolderName,
+      if (dataManager.getPageFolder() != dataManager.homeFolder) {
+        dataManager.popCurrPath();
+        Navigator.pop(context);
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => FolderPage(
+              folderName: currFolderName,
+            ),
           ),
-        ),
-      );
-    } else {
-      dataManager.clearCurrPath();
-      Navigator.pop(context);
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) {
-          return const HomePage();
-        }),
-      );
-    }
-  }
-
-  // 新增檔案
-  void _addFile() async {
-    await pickAndConvertFile().then((s) {
-      _reload();
+        );
+      } else {
+        dataManager.clearCurrPath();
+        Navigator.pop(context);
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) {
+            return const HomePage();
+          }),
+        );
+      }
     });
-  }
-
-  // 新增資料夾
-  void _addFolder(String folderName) {
-    dataManager.addFolder(Folder(name: folderName));
-    _reload();
   }
 
   @override
@@ -208,10 +314,13 @@ class Page extends State<Pages> {
                   },
                 ),
         ),
-        body: Stack(
-          children: [
-            widget.child, // 子頁面內容
-          ],
+        body: RefreshIndicator(
+          onRefresh: _refreshData,
+          child: Stack(
+            children: [
+              widget.child, // 子頁面內容
+            ],
+          ),
         ),
 
         // + 的按鈕
@@ -275,7 +384,9 @@ class Page extends State<Pages> {
               ),
             ),
             onPressed: () async {
-              _addFile();
+              await pickAndConvertFile().then((s) {
+                if (context.mounted) reloadPage(context);
+              });
               setState(() {
                 showAddOptions = false; // 點擊後收起按鈕
               });
@@ -306,7 +417,11 @@ class Page extends State<Pages> {
               String? folderName =
                   await _addItemScreen(context, "新增資料夾", "資料夾名稱");
               if (folderName != null && folderName.trim().isNotEmpty) {
-                _addFolder(folderName.trim());
+                dataManager
+                    .addFolder(Folder(name: folderName.trim()))
+                    .then((s) {
+                  if (context.mounted) reloadPage(context);
+                });
               }
               setState(() {
                 showAddOptions = false; // 點擊後收起按鈕
@@ -333,60 +448,91 @@ class FolderPage extends StatelessWidget {
     dataManager.addCurrPath(folderName);
     Folder currFolder = dataManager.getPageFolder();
 
+    // 新增選取檔案的狀態管理器
+    final ValueNotifier<Set<int>> selectedFiles = ValueNotifier<Set<int>>({});
+
     // 回傳子頁面內容
     return Pages(
       pageName: folderName,
-      child: ListView(
-        children: [
-          // 資料夾部分
-          ...currFolder.folders.map((folder) => ListTile(
-                leading: const Icon(
-                  Icons.folder,
-                  color: Colors.orange,
-                ),
-                title: Text(folder.name),
-                onTap: () {
-                  // 跳轉到點擊的資料夾頁面
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => FolderPage(
-                        folderName: folder.name,
+      child: ValueListenableBuilder<Set<int>>(
+          valueListenable: selectedFiles,
+          builder: (context, selectedSet, child) {
+            return ListView(
+              children: [
+                // 資料夾部分
+                ...currFolder.folders.map((folder) => ListTile(
+                      leading: const Icon(
+                        Icons.folder,
+                        color: Colors.orange,
                       ),
+                      title: Text(folder.name),
+                      onTap: () {
+                        // 跳轉到點擊的資料夾頁面
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => FolderPage(
+                              folderName: folder.name,
+                            ),
+                          ),
+                        );
+                      },
+                      onLongPress: () {
+                        showMenu(context, folder);
+                      },
+                    )),
+
+                // 檔案部分
+                ...currFolder.files.asMap().entries.map((entry) {
+                  int index = entry.key;
+                  Document file = entry.value;
+
+                  return GestureDetector(
+                    onLongPress: () {
+                      // 選取檔案
+                      selectedFiles.value = selectedSet.contains(index)
+                          ? {...selectedSet..remove(index)}
+                          : {...selectedSet..add(index)};
+
+                      if (selectedSet.contains(index)) {
+                        List<Document> filesToMerge = [];
+                        for (int selectIdx in selectedSet) {
+                          filesToMerge.add(currFolder.files[selectIdx]);
+                        }
+
+                        selectedSet.length > 1
+                            ? showMergeOption(context, filesToMerge)
+                            : showMenu(context, file);
+                      }
+                    },
+                    child: ListTile(
+                      leading: Icon(
+                        Icons.insert_drive_file,
+                        color: Colors.red.shade900,
+                      ),
+                      title: Text(file.name),
+                      trailing: selectedSet.contains(index)
+                          ? const Icon(Icons.check_circle, color: Colors.blue)
+                          : null,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => PdfViewPage(
+                                    filePath: file.path,
+                                    fileName: file.name,
+                                  )),
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                          content: Text("打開檔案：${file.name}"),
+                        ));
+                      },
                     ),
                   );
-                },
-                onLongPress: () {
-                  _showMenu(context, folder);
-                },
-              )),
-
-          // 檔案部分
-          ...currFolder.files.map((file) => ListTile(
-                leading: Icon(
-                  Icons.insert_drive_file,
-                  color: Colors.red.shade900,
-                ),
-                title: Text(file.name),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => PdfViewPage(
-                              filePath: file.path,
-                              fileName: file.name,
-                            )),
-                  );
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: Text("打開檔案：${file.name}"),
-                  ));
-                },
-                onLongPress: () {
-                  _showMenu(context, file);
-                },
-              )),
-        ],
-      ),
+                }),
+              ],
+            );
+          }),
     );
   }
 }
@@ -406,64 +552,91 @@ class HomePage extends StatelessWidget {
     // 獲得新頁面路徑畫面的資料夾內容
     Folder currFolder = dataManager.getPageFolder();
 
+    // 新增選取檔案的狀態管理器
+    final ValueNotifier<Set<int>> selectedFiles = ValueNotifier<Set<int>>({});
+
     // 回傳子頁面內容
     return Pages(
       pageName: folderName,
-      child: ListView(
-        children: [
-          // 資料夾部分
-          ...currFolder.folders.map((folder) => ListTile(
-                leading: const Icon(
-                  Icons.folder,
-                  color: Colors.orange,
-                ),
-                title: Text(folder.name),
-                onTap: () {
-                  // 跳轉到點擊的資料夾頁面
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => FolderPage(
-                        folderName: folder.name,
+      child: ValueListenableBuilder<Set<int>>(
+          valueListenable: selectedFiles,
+          builder: (context, selectedSet, child) {
+            return ListView(
+              children: [
+                // 資料夾部分
+                ...currFolder.folders.map((folder) => ListTile(
+                      leading: const Icon(
+                        Icons.folder,
+                        color: Colors.orange,
                       ),
+                      title: Text(folder.name),
+                      onTap: () {
+                        // 跳轉到點擊的資料夾頁面
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => FolderPage(
+                              folderName: folder.name,
+                            ),
+                          ),
+                        );
+                      },
+                      onLongPress: () {
+                        showMenu(context, folder);
+                      },
+                    )),
+
+                // 檔案部分
+                ...currFolder.files.asMap().entries.map((entry) {
+                  int index = entry.key;
+                  Document file = entry.value;
+
+                  return GestureDetector(
+                    onLongPress: () {
+                      // 選取檔案
+                      selectedFiles.value = selectedSet.contains(index)
+                          ? {...selectedSet..remove(index)}
+                          : {...selectedSet..add(index)};
+
+                      if (selectedSet.contains(index)) {
+                        List<Document> filesToMerge = [];
+                        for (int selectIdx in selectedSet) {
+                          filesToMerge.add(currFolder.files[selectIdx]);
+                        }
+
+                        selectedSet.length > 1
+                            ? showMergeOption(context, filesToMerge)
+                            : showMenu(context, file);
+                      }
+                    },
+                    child: ListTile(
+                      leading: Icon(
+                        Icons.insert_drive_file,
+                        color: Colors.red.shade900,
+                      ),
+                      title: Text(file.name),
+                      trailing: selectedSet.contains(index)
+                          ? const Icon(Icons.check_circle, color: Colors.blue)
+                          : null,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => PdfViewPage(
+                                    filePath: file.path,
+                                    fileName: file.name,
+                                  )),
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                          content: Text("打開檔案：${file.name}"),
+                        ));
+                      },
                     ),
                   );
-                },
-                //       ),
-                //     ),
-                //   );
-                // },
-                onLongPress: () {
-                  _showMenu(context, folder);
-                },
-              )),
-
-          // 檔案部分
-          ...currFolder.files.map((file) => ListTile(
-                leading: Icon(
-                  Icons.insert_drive_file,
-                  color: Colors.red.shade900,
-                ),
-                title: Text(file.name),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => PdfViewPage(
-                              filePath: file.path,
-                              fileName: file.name,
-                            )),
-                  );
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: Text("打開檔案：${file.name}"),
-                  ));
-                },
-                onLongPress: () {
-                  _showMenu(context, file);
-                },
-              )),
-        ],
-      ),
+                }),
+              ],
+            );
+          }),
     );
   }
 }

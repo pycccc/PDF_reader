@@ -1,12 +1,14 @@
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/widgets.dart' as pdf_widgets;
 import 'package:pdf/pdf.dart' as pdf_pdf;
-import 'dart:typed_data';
 import 'package:archive/archive_io.dart';
+import 'dart:typed_data';
 import 'dart:io';
+import './data_manager.dart';
 
 class Converter {
   late File file;
+  DataManager datamanager = DataManager();
 
 // constuctor
   Converter(File fileToConvert) {
@@ -15,12 +17,17 @@ class Converter {
 
 // private:
 
-  // 建立 pdf_reader 資料夾並獲取路徑
-  Future<Directory> _getDirToSave() async {
+  // 建立完整路徑
+  Future<Directory> _getWholeDir() async {
     // 獲取應用文件目錄
     final Directory appDocDir = await getApplicationDocumentsDirectory();
-    // 建立或獲取 `pdf_reader` 資料夾
-    final Directory pdfReaderDir = Directory('${appDocDir.path}/pdf_reader');
+    List<String> currDirs = datamanager.currentPath;
+    String wholeDir = '${appDocDir.path}/pdf_reader';
+    for (var currDir in currDirs) {
+      wholeDir += '/';
+      wholeDir += currDir;
+    }
+    final Directory pdfReaderDir = Directory(wholeDir);
     if (!await pdfReaderDir.exists()) {
       await pdfReaderDir.create(recursive: true); // 遞迴建立資料夾
     }
@@ -86,7 +93,7 @@ class Converter {
 
   Future<File> pdfToPdf(String filename) async {
     // 如果是 pdf，複製一份
-    Directory pdfReaderDir = await _getDirToSave();
+    Directory pdfReaderDir = await _getWholeDir();
     File pdfFile = await file.copy('${pdfReaderDir.path}/$filename');
     return pdfFile;
   }
@@ -104,7 +111,7 @@ class Converter {
     );
 
     // 獲取 pdf_reader 資料夾
-    Directory pdfDir = await _getDirToSave();
+    Directory pdfDir = await _getWholeDir();
     String pdfPath = '${pdfDir.path}/${filename.split('.').first}.pdf';
 
     // 儲存 PDF 到本地
@@ -169,7 +176,7 @@ class Converter {
     );
 
     //保存 PDF
-    Directory pdfDir = await _getDirToSave();
+    Directory pdfDir = await _getWholeDir();
     String pdfPath = '${pdfDir.path}/${filename.split('.').first}.pdf';
 
     // 儲存 PDF 到本地
