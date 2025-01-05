@@ -117,135 +117,208 @@ void reloadPage(context) {
   }
 }
 
-// 顯示功能選單
-void showMenu(context, Data item) {
-  bool isFolder = (item.type == "folder") ? true : false;
+// 建立資料夾選單項目
+Widget buildFolderMenu(BuildContext context,
+    {required IconData icon,
+    required String label,
+    required String value,
+    required Data item}) {
+  return GestureDetector(
+    onTap: () async {
+      Navigator.of(context).pop(); // 關閉選單
+      switch (value) {
+        case 'delete': // 刪除資料夾
+          dataManager.deleteFolder(Folder(name: item.name.trim()));
+          if (context.mounted) reloadPage(context);
+          break;
+        case 'rename': // 修改資料夾名稱
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text("修改完成後請重新進入資料夾頁面"),
+          ));
 
-  isFolder
-      ? showModalBottomSheet(
-          context: context,
-          builder: (context) {
-            return Wrap(
-              children: [
-                ListTile(
-                  // 刪除
-                  title: Text("刪除"),
-                  onTap: () async {
-                    Navigator.pop(context);
-
-                    // 刪除資料夾
-                    dataManager.deleteFolder(Folder(name: item.name.trim()));
-                    if (context.mounted) reloadPage(context);
-                  },
-                ),
-                ListTile(
-                  // 修改名稱
-                  title: Text("修改名稱"),
-                  onTap: () async {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                      content: Text("修改完成後請重新進入資料夾頁面"),
-                    ));
-
-                    Navigator.pop(context);
-
-                    // 修改資料夾
-                    String? newFolderName =
-                        await _addItemScreen(context, "重新命名資料夾", "資料夾名稱");
-                    if (newFolderName != null &&
-                        newFolderName.trim().isNotEmpty) {
-                      dataManager
-                          .renameFolder(
-                              Folder(name: item.name.trim()), newFolderName)
-                          .then((s) {
-                        if (context.mounted) reloadPage(context);
-                      });
-                    }
-                  },
-                ),
-              ],
-            );
-          },
-        )
-      : showModalBottomSheet(
-          context: context,
-          builder: (context) {
-            return Wrap(
-              children: [
-                ListTile(
-                  // 刪除
-                  title: Text("刪除"),
-                  onTap: () async {
-                    Navigator.pop(context);
-
-                    Folder currFolder = dataManager.getPageFolder();
-                    List<Document> currFiles = currFolder.files;
-                    int fileToDelIdx = currFiles
-                        .indexWhere((file) => file.name == item.name.trim());
-                    await dataManager
-                        .deleteFile(currFiles[fileToDelIdx])
-                        .then((s) {
-                      if (context.mounted) reloadPage(context);
-                    });
-                  },
-                ),
-                ListTile(
-                  // 修改名稱
-                  title: Text("修改名稱"),
-                  onTap: () async {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                      content: Text("修改完成後請重新進入資料夾頁面"),
-                    ));
-                    Navigator.pop(context);
-                    // 修改檔案
-                    String? newFilename =
-                        await _addItemScreen(context, "重新命名檔案", "檔案名稱");
-                    if (newFilename != null) {
-                      Folder currFolder = dataManager.getPageFolder();
-                      List<Document> currFiles = currFolder.files;
-                      int fileToRenameIdx = currFiles
-                          .indexWhere((file) => file.name == item.name.trim());
-                      if (fileToRenameIdx >= 0) {
-                        await dataManager
-                            .renameFile(currFiles[fileToRenameIdx], newFilename)
-                            .then((s) {
-                          if (context.mounted) reloadPage(context);
-                        });
-                      }
-                    }
-                  },
-                ),
-                ListTile(
-                  title: Text("分割"),
-                  onTap: () {
-                    Navigator.pop(context);
-                    reloadPage(context);
-                    // TODO
-                  },
-                ),
-              ],
-            );
-          },
-        );
+          String? newFolderName =
+              await _addItemScreen(context, "重新命名資料夾", "資料夾名稱");
+          if (newFolderName != null && newFolderName.trim().isNotEmpty) {
+            dataManager
+                .renameFolder(Folder(name: item.name.trim()), newFolderName)
+                .then((s) {
+              if (context.mounted) reloadPage(context);
+            });
+          }
+          break;
+      }
+    },
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [Icon(icon, size: 24, color: Colors.grey.shade600)],
+      ),
+    ),
+  );
 }
 
-void showMergeOption(context, List<Document> filesToMerge) {
-  showModalBottomSheet(
-    context: context,
-    builder: (context) {
-      return Wrap(
-        children: [
-          ListTile(
-            title: Text("合併"),
-            onTap: () async {
-              Navigator.pop(context);
-
-              // TODO
-            },
-          ),
-        ],
-      );
+// 建立檔案選單項目
+Widget buildFileMenu(BuildContext context,
+    {required IconData icon,
+    required String label,
+    required String value,
+    required Data item}) {
+  return GestureDetector(
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [Icon(icon, size: 24, color: Colors.grey.shade600)],
+      ),
+    ),
+    onTap: () async {
+      Navigator.of(context).pop(); // 關閉選單
+      switch (value) {
+        case 'delete': // 刪除檔案
+          Folder currFolder = dataManager.getPageFolder();
+          List<Document> currFiles = currFolder.files;
+          int fileToDelIdx =
+              currFiles.indexWhere((file) => file.name == item.name.trim());
+          await dataManager.deleteFile(currFiles[fileToDelIdx]).then((s) {
+            if (context.mounted) reloadPage(context);
+          });
+          break;
+        case 'rename': // 修改檔案名稱
+          String? newFilename = await _addItemScreen(context, "重新命名檔案", "檔案名稱");
+          if (newFilename != null) {
+            Folder currFolder = dataManager.getPageFolder();
+            List<Document> currFiles = currFolder.files;
+            int fileToRenameIdx =
+                currFiles.indexWhere((file) => file.name == item.name.trim());
+            if (fileToRenameIdx >= 0) {
+              await dataManager
+                  .renameFile(currFiles[fileToRenameIdx], newFilename)
+                  .then((s) {
+                if (context.mounted) reloadPage(context);
+              });
+            }
+          }
+          break;
+        case 'divide': // 分割檔案
+          // TODO
+          break;
+      }
     },
   );
+}
+
+// 建立檔案選單項目
+Widget buildMergeOption(BuildContext context,
+    {required IconData icon,
+    required String label,
+    required String value,
+    required List<Document> filesToMerge}) {
+  return GestureDetector(
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 24, color: Colors.grey.shade600),
+          Text(label, style: const TextStyle(fontSize: 14)),
+        ],
+      ),
+    ),
+    onTap: () async {
+      Navigator.of(context).pop(); // 關閉選單
+      // TODO
+    },
+  );
+}
+
+// 顯示功能清單
+void showMenuSheet(context, Data item) async {
+  bool isFolder = (item.type == "folder") ? true : false;
+
+  await showDialog(
+      context: context,
+      barrierColor: const Color.fromARGB(20, 0, 0, 0),
+      builder: (BuildContext context) {
+        return Stack(
+          children: [
+            Positioned(
+              right: 0,
+              top: 0,
+              child: Material(
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (!isFolder)
+                        buildFileMenu(context,
+                            icon: Icons.border_horizontal,
+                            label: '分割',
+                            value: 'divide',
+                            item: item),
+                      isFolder
+                          ? buildFolderMenu(context,
+                              icon: Icons.delete,
+                              label: "刪除",
+                              value: 'delete',
+                              item: item)
+                          : buildFileMenu(context,
+                              icon: Icons.delete,
+                              label: "刪除",
+                              value: 'delete',
+                              item: item),
+                      isFolder
+                          ? buildFolderMenu(context,
+                              icon: Icons.edit,
+                              label: '修改名稱',
+                              value: 'rename',
+                              item: item)
+                          : buildFileMenu(context,
+                              icon: Icons.edit,
+                              label: '修改名稱',
+                              value: 'rename',
+                              item: item),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      });
+}
+
+// 顯示合併清單
+void showMergeOption(context, List<Document> filesToMerge) async {
+  await showDialog(
+      context: context,
+      barrierColor: const Color.fromARGB(20, 0, 0, 0),
+      builder: (BuildContext context) {
+        return Stack(
+          children: [
+            Positioned(
+              right: 0,
+              top: 0,
+              child: Material(
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      buildMergeOption(context,
+                          icon: Icons.merge_type,
+                          label: '合併',
+                          value: 'merge',
+                          filesToMerge: filesToMerge),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      });
 }
 
 // 頁面建立
@@ -453,87 +526,120 @@ class FolderPage extends StatelessWidget {
 
     // 回傳子頁面內容
     return Pages(
-      pageName: folderName,
-      child: ValueListenableBuilder<Set<int>>(
-          valueListenable: selectedFiles,
-          builder: (context, selectedSet, child) {
-            return ListView(
-              children: [
-                // 資料夾部分
-                ...currFolder.folders.map((folder) => ListTile(
-                      leading: const Icon(
-                        Icons.folder,
-                        color: Colors.orange,
-                      ),
-                      title: Text(folder.name),
-                      onTap: () {
-                        // 跳轉到點擊的資料夾頁面
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => FolderPage(
-                              folderName: folder.name,
+        pageName: folderName,
+        child: GestureDetector(
+          // 當點擊空白區域時清空 selectedSet
+          onTap: () {
+            selectedFiles.value = {}; // 清空選擇集
+          },
+          child: ValueListenableBuilder<Set<int>>(
+              valueListenable: selectedFiles,
+              builder: (context, selectedSet, child) {
+                return ListView(
+                  children: [
+                    // 資料夾部分
+                    ...currFolder.folders.asMap().entries.map((entry) {
+                      int index = entry.key;
+                      Folder folder = entry.value;
+
+                      return GestureDetector(
+                          onLongPress: () {
+                            if (selectedSet.contains(index) &&
+                                selectedSet.length == 1) {
+                              selectedFiles.value = selectedSet.contains(index)
+                                  ? {...selectedSet..remove(index)}
+                                  : {...selectedSet..add(index)};
+                            } else {
+                              selectedSet.clear();
+                              selectedSet.add(index);
+                              selectedFiles.value = {index};
+                            }
+                            if (selectedSet.contains(index)) {
+                              showMenuSheet(context, folder);
+                            }
+                          },
+                          child: ListTile(
+                            leading: const Icon(
+                              Icons.folder,
+                              color: Colors.orange,
                             ),
+                            trailing: selectedSet.contains(index)
+                                ? const Icon(Icons.check_circle,
+                                    color: Colors.blue)
+                                : null,
+                            title: Text(folder.name),
+                            onTap: () {
+                              // 跳轉到點擊的資料夾頁面
+                              selectedFiles.value = {}; // 清空選擇集
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => FolderPage(
+                                    folderName: folder.name,
+                                  ),
+                                ),
+                              );
+                            },
+                          ));
+                    }),
+
+                    // 檔案部分
+                    ...currFolder.files.asMap().entries.map((entry) {
+                      int index = entry.key + currFolder.folders.length;
+                      Document file = entry.value;
+
+                      return GestureDetector(
+                        onLongPress: () {
+                          // 選取檔案
+                          selectedFiles.value = selectedSet.contains(index)
+                              ? {...selectedSet..remove(index)}
+                              : {...selectedSet..add(index)};
+
+                          if (selectedSet.contains(index)) {
+                            List<Document> filesToMerge = [];
+                            for (int selectIdx in selectedSet) {
+                              if (selectIdx > currFolder.folders.length - 1) {
+                                filesToMerge.add(currFolder.files[
+                                    selectIdx - currFolder.folders.length]);
+                              }
+                            }
+
+                            selectedSet.length > 1
+                                ? showMergeOption(context, filesToMerge)
+                                : showMenuSheet(context, file);
+                          }
+                        },
+                        child: ListTile(
+                          leading: Icon(
+                            Icons.insert_drive_file,
+                            color: Colors.red.shade900,
                           ),
-                        );
-                      },
-                      onLongPress: () {
-                        showMenu(context, folder);
-                      },
-                    )),
-
-                // 檔案部分
-                ...currFolder.files.asMap().entries.map((entry) {
-                  int index = entry.key;
-                  Document file = entry.value;
-
-                  return GestureDetector(
-                    onLongPress: () {
-                      // 選取檔案
-                      selectedFiles.value = selectedSet.contains(index)
-                          ? {...selectedSet..remove(index)}
-                          : {...selectedSet..add(index)};
-
-                      if (selectedSet.contains(index)) {
-                        List<Document> filesToMerge = [];
-                        for (int selectIdx in selectedSet) {
-                          filesToMerge.add(currFolder.files[selectIdx]);
-                        }
-
-                        selectedSet.length > 1
-                            ? showMergeOption(context, filesToMerge)
-                            : showMenu(context, file);
-                      }
-                    },
-                    child: ListTile(
-                      leading: Icon(
-                        Icons.insert_drive_file,
-                        color: Colors.red.shade900,
-                      ),
-                      title: Text(file.name),
-                      trailing: selectedSet.contains(index)
-                          ? const Icon(Icons.check_circle, color: Colors.blue)
-                          : null,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (context) => PdfViewPage(
-                                    filePath: file.path,
-                                    fileName: file.name,
-                                  )),
-                        );
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                          content: Text("打開檔案：${file.name}"),
-                        ));
-                      },
-                    ),
-                  );
-                }),
-              ],
-            );
-          }),
-    );
+                          title: Text(file.name),
+                          trailing: selectedSet.contains(index)
+                              ? const Icon(Icons.check_circle,
+                                  color: Colors.blue)
+                              : null,
+                          onTap: () {
+                            selectedFiles.value = {}; // 清空選擇集
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => PdfViewPage(
+                                        filePath: file.path,
+                                        fileName: file.name,
+                                      )),
+                            );
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                              content: Text("打開檔案：${file.name}"),
+                            ));
+                          },
+                        ),
+                      );
+                    }),
+                  ],
+                );
+              }),
+        ));
   }
 }
 
@@ -557,86 +663,119 @@ class HomePage extends StatelessWidget {
 
     // 回傳子頁面內容
     return Pages(
-      pageName: folderName,
-      child: ValueListenableBuilder<Set<int>>(
-          valueListenable: selectedFiles,
-          builder: (context, selectedSet, child) {
-            return ListView(
-              children: [
-                // 資料夾部分
-                ...currFolder.folders.map((folder) => ListTile(
-                      leading: const Icon(
-                        Icons.folder,
-                        color: Colors.orange,
-                      ),
-                      title: Text(folder.name),
-                      onTap: () {
-                        // 跳轉到點擊的資料夾頁面
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => FolderPage(
-                              folderName: folder.name,
+        pageName: folderName,
+        child: GestureDetector(
+          // 當點擊空白區域時清空 selectedSet
+          onTap: () {
+            selectedFiles.value = {}; // 清空選擇集
+          },
+          child: ValueListenableBuilder<Set<int>>(
+              valueListenable: selectedFiles,
+              builder: (context, selectedSet, child) {
+                return ListView(
+                  children: [
+                    // 資料夾部分
+                    ...currFolder.folders.asMap().entries.map((entry) {
+                      int index = entry.key;
+                      Folder folder = entry.value;
+
+                      return GestureDetector(
+                          onLongPress: () {
+                            if (selectedSet.contains(index) &&
+                                selectedSet.length == 1) {
+                              selectedFiles.value = selectedSet.contains(index)
+                                  ? {...selectedSet..remove(index)}
+                                  : {...selectedSet..add(index)};
+                            } else {
+                              selectedSet.clear();
+                              selectedSet.add(index);
+                              selectedFiles.value = {index};
+                            }
+                            if (selectedSet.contains(index)) {
+                              showMenuSheet(context, folder);
+                            }
+                          },
+                          child: ListTile(
+                            leading: const Icon(
+                              Icons.folder,
+                              color: Colors.orange,
                             ),
+                            trailing: selectedSet.contains(index)
+                                ? const Icon(Icons.check_circle,
+                                    color: Colors.blue)
+                                : null,
+                            title: Text(folder.name),
+                            onTap: () {
+                              selectedFiles.value = {}; // 清空選擇集
+                              // 跳轉到點擊的資料夾頁面
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => FolderPage(
+                                    folderName: folder.name,
+                                  ),
+                                ),
+                              );
+                            },
+                          ));
+                    }),
+
+                    // 檔案部分
+                    ...currFolder.files.asMap().entries.map((entry) {
+                      int index = entry.key + currFolder.folders.length;
+                      Document file = entry.value;
+
+                      return GestureDetector(
+                        onLongPress: () {
+                          // 選取檔案
+                          selectedFiles.value = selectedSet.contains(index)
+                              ? {...selectedSet..remove(index)}
+                              : {...selectedSet..add(index)};
+
+                          if (selectedSet.contains(index)) {
+                            List<Document> filesToMerge = [];
+                            for (int selectIdx in selectedSet) {
+                              if (selectIdx > currFolder.folders.length - 1) {
+                                filesToMerge.add(currFolder.files[
+                                    selectIdx - currFolder.folders.length]);
+                              }
+                            }
+
+                            selectedSet.length > 1
+                                ? showMergeOption(context, filesToMerge)
+                                : showMenuSheet(context, file);
+                          }
+                        },
+                        child: ListTile(
+                          leading: Icon(
+                            Icons.insert_drive_file,
+                            color: Colors.red.shade900,
                           ),
-                        );
-                      },
-                      onLongPress: () {
-                        showMenu(context, folder);
-                      },
-                    )),
-
-                // 檔案部分
-                ...currFolder.files.asMap().entries.map((entry) {
-                  int index = entry.key;
-                  Document file = entry.value;
-
-                  return GestureDetector(
-                    onLongPress: () {
-                      // 選取檔案
-                      selectedFiles.value = selectedSet.contains(index)
-                          ? {...selectedSet..remove(index)}
-                          : {...selectedSet..add(index)};
-
-                      if (selectedSet.contains(index)) {
-                        List<Document> filesToMerge = [];
-                        for (int selectIdx in selectedSet) {
-                          filesToMerge.add(currFolder.files[selectIdx]);
-                        }
-
-                        selectedSet.length > 1
-                            ? showMergeOption(context, filesToMerge)
-                            : showMenu(context, file);
-                      }
-                    },
-                    child: ListTile(
-                      leading: Icon(
-                        Icons.insert_drive_file,
-                        color: Colors.red.shade900,
-                      ),
-                      title: Text(file.name),
-                      trailing: selectedSet.contains(index)
-                          ? const Icon(Icons.check_circle, color: Colors.blue)
-                          : null,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (context) => PdfViewPage(
-                                    filePath: file.path,
-                                    fileName: file.name,
-                                  )),
-                        );
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                          content: Text("打開檔案：${file.name}"),
-                        ));
-                      },
-                    ),
-                  );
-                }),
-              ],
-            );
-          }),
-    );
+                          title: Text(file.name),
+                          trailing: selectedSet.contains(index)
+                              ? const Icon(Icons.check_circle,
+                                  color: Colors.blue)
+                              : null,
+                          onTap: () {
+                            selectedFiles.value = {}; // 清空選擇集
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => PdfViewPage(
+                                        filePath: file.path,
+                                        fileName: file.name,
+                                      )),
+                            );
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                              content: Text("打開檔案：${file.name}"),
+                            ));
+                          },
+                        ),
+                      );
+                    }),
+                  ],
+                );
+              }),
+        ));
   }
 }

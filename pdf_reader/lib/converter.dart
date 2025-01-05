@@ -78,7 +78,7 @@ class Converter {
               ? pdf_pdf.PdfColor.fromHex(colorHex)
               : pdf_pdf.PdfColors.black,
           fontSize:
-              sizeVal != null ? double.parse(sizeVal) / 2 : 12, // Word 字號需除以 2
+              sizeVal != null ? double.parse(sizeVal) / 2 : 14, // Word 字號需除以 2
         );
 
         // 添加文字到 TextSpan
