@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:pdf_reader/pages/google_translate.dart';
 import 'package:flutter/services.dart'; // 提供 rootBundle
 import 'signatureDialog.dart';
 
@@ -26,6 +27,8 @@ class _PdfViewPageState extends State<PdfViewPage> {
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _zoomController =
       TextEditingController(text: "100");
+  final GoogleTranslateService _translateService = GoogleTranslateService(
+      'AIzaSyCKJegTPj-NDXtwvSNzExUkJkDurPCzMWs'); // 替換成你的金鑰
 
   PdfTextSearchResult _searchResult = PdfTextSearchResult();
   bool _isPdfLoaded = false;
@@ -170,11 +173,15 @@ class _PdfViewPageState extends State<PdfViewPage> {
   }
 
   /// 顯示翻譯結果的 Overlay
-  void _showOverlay(Rect? region, String text) {
+  void _showOverlay(Rect? region, String text) async {
     _hideOverlay(); // 隱藏舊的 Overlay
 
     final overlay = Overlay.of(context);
     if (region != null && overlay != null) {
+      // 呼叫 Google Translate API 翻譯
+      final translatedText =
+          await _translateService.translate(text, 'zh-TW'); // 目標語言為中文
+
       _overlayEntry = OverlayEntry(
         builder: (context) {
           return Positioned(
@@ -198,7 +205,7 @@ class _PdfViewPageState extends State<PdfViewPage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      _translateToChinese(text),
+                      translatedText,
                       style: const TextStyle(color: Colors.black),
                     ),
                     const SizedBox(height: 8),
@@ -222,22 +229,15 @@ class _PdfViewPageState extends State<PdfViewPage> {
   /// 隱藏翻譯結果的 Overlay
   void _hideOverlay() {
     if (_overlayEntry != null) {
-      _overlayEntry!.remove();
-      _overlayEntry = null;
+      print('正在隱藏翻譯结果...');
+      _overlayEntry!.remove(); // 移除 OverlayEntry
+      _overlayEntry = null; // 清空引用
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Overlay.of(context)?.setState(() {}); // 刷新 Overlay 树
+      });
+    } else {
+      print('没有翻譯结果需要隱藏。');
     }
-  }
-
-  /// 模擬將選取的文字翻譯成中文
-  String _translateToChinese(String text) {
-    // 模擬翻譯，實際可以接 API，例如 Google 翻譯 API
-    Map<String, String> mockTranslations = {
-      "equipment": "設備",
-      "flexibility": "靈活性",
-      "security": "安全性",
-    };
-
-    // 如果有對應翻譯，返回中文，否則原樣返回
-    return mockTranslations[text.toLowerCase()] ?? "翻譯後：$text";
   }
 
   //annotation note
