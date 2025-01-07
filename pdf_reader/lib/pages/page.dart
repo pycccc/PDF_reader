@@ -49,7 +49,7 @@ Future<String> pickAndConvertFile() async {
     // 打開檔案選擇器
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['txt', 'pdf', 'docx', 'doc'],
+      allowedExtensions: ['txt', 'pdf', 'docx', 'pptx', 'xlsx', 'png'],
     );
     if (result == null || result.files.single.path == null) {
       return "未選擇檔案或檔案路徑無效";
@@ -66,18 +66,9 @@ Future<String> pickAndConvertFile() async {
     if (selectedName.endsWith('.pdf')) {
       pdfFile = await converter.pdfToPdf(selectedName);
     }
-    // txt to pdf
-    else if (selectedName.endsWith('.txt')) {
-      pdfFile = await converter.txtToPdf(selectedName);
-    }
-    // docx to pdf
-    else if (selectedName.endsWith('.docx') || selectedName.endsWith('.doc')) {
-      pdfFile = await converter.docxToPdf(selectedName);
-    }
-    // else if (originalName.endsWith('.pptx')) {
-    // }
+    // others to pdf
     else {
-      return "不支援的檔案格式";
+      pdfFile = await converter.fileToPdf(selectedName);
     }
 
     // 存到本地

@@ -1,10 +1,9 @@
 import 'package:path_provider/path_provider.dart';
-import 'package:pdf/widgets.dart' as pdf_widgets;
-import 'package:pdf/pdf.dart' as pdf_pdf;
-import 'package:archive/archive_io.dart';
-import 'dart:typed_data';
+import 'package:http/http.dart' as http;
 import 'dart:io';
 import './data_manager.dart';
+
+String convertURL = 'https://805c-140-117-177-206.ngrok-free.app/convert';
 
 class Converter {
   late File file;
@@ -34,61 +33,6 @@ class Converter {
     return pdfReaderDir;
   }
 
-  // 轉換 docx 格式
-  List<pdf_widgets.TextSpan> _extractStyledTextFromDocumentXml(String xml) {
-    final List<pdf_widgets.TextSpan> spans = [];
-
-    // 匹配文字運行節點
-    final RegExp runRegExp =
-        RegExp(r'<w:r>(.*?)<\/w:r>', multiLine: true, dotAll: true);
-
-    // 匹配文字內容
-    final RegExp textRegExp =
-        RegExp(r'<w:t[^>]*>(.*?)<\/w:t>', multiLine: true);
-
-    // 匹配樣式
-    final RegExp boldRegExp = RegExp(r'<w:b[^>]*\/>');
-    final RegExp italicRegExp = RegExp(r'<w:i[^>]*\/>');
-    final RegExp colorRegExp =
-        RegExp(r'<w:color[^>]*w:val="([0-9A-Fa-f]{6})"[^>]*\/>');
-    final RegExp sizeRegExp = RegExp(r'<w:sz[^>]*w:val="(\d+)"[^>]*\/>');
-
-    for (final match in runRegExp.allMatches(xml)) {
-      final String runContent = match.group(1)!;
-
-      // 提取文字內容
-      final String? text = textRegExp.firstMatch(runContent)?.group(1);
-
-      if (text != null && text.isNotEmpty) {
-        // 檢查樣式
-        final bool isBold = boldRegExp.hasMatch(runContent);
-        final bool isItalic = italicRegExp.hasMatch(runContent);
-        final String? colorHex = colorRegExp.firstMatch(runContent)?.group(1);
-        final String? sizeVal = sizeRegExp.firstMatch(runContent)?.group(1);
-
-        // 構建文字樣式
-        pdf_widgets.TextStyle textStyle = pdf_widgets.TextStyle(
-          fontWeight: isBold
-              ? pdf_widgets.FontWeight.bold
-              : pdf_widgets.FontWeight.normal,
-          fontStyle: isItalic
-              ? pdf_widgets.FontStyle.italic
-              : pdf_widgets.FontStyle.normal,
-          color: colorHex != null
-              ? pdf_pdf.PdfColor.fromHex(colorHex)
-              : pdf_pdf.PdfColors.black,
-          fontSize:
-              sizeVal != null ? double.parse(sizeVal) / 2 : 14, // Word 字號需除以 2
-        );
-
-        // 添加文字到 TextSpan
-        spans.add(pdf_widgets.TextSpan(text: text, style: textStyle));
-      }
-    }
-
-    return spans;
-  }
-
 // public:
 
   Future<File> pdfToPdf(String filename) async {
@@ -98,82 +42,20 @@ class Converter {
     return pdfFile;
   }
 
-  Future<File> txtToPdf(String filename) async {
-    // 讀取檔案內容
-    String fileContent = await file.readAsString();
+  Future<File> fileToPdf(String filename) async {
+    final File fileToConvert = File(file.path);
 
-    // 建立 PDF 文件
-    final pdf = pdf_widgets.Document();
-    pdf.addPage(
-      pdf_widgets.Page(
-        build: (context) => pdf_widgets.Text(fileContent),
-      ),
-    );
+    // 設置 API URL
+    var url = Uri.parse(convertURL);
+    var request = http.MultipartRequest('POST', url);
 
-    // 獲取 pdf_reader 資料夾
-    Directory pdfDir = await _getWholeDir();
-    String pdfPath = '${pdfDir.path}/${filename.split('.').first}.pdf';
+    // 添加檔案
+    var multipartFile =
+        await http.MultipartFile.fromPath('file', fileToConvert.path);
+    request.files.add(multipartFile);
 
-    // 儲存 PDF 到本地
-    File savedPdfFile = File(pdfPath);
-    await savedPdfFile.writeAsBytes(await pdf.save());
-
-    return savedPdfFile;
-  }
-
-  Future<File> docxToPdf(String filename) async {
-    // 解壓 docx 文件
-    final File docxFile = File(file.path);
-    final Uint8List docxBytes = await docxFile.readAsBytes();
-    final Archive archive = ZipDecoder().decodeBytes(docxBytes);
-
-    // 提取 document.xml 和圖片
-    String documentXml = '';
-    final Map<String, Uint8List> images = {};
-    for (final file in archive) {
-      if (file.name == 'word/document.xml') {
-        documentXml = String.fromCharCodes(file.content as List<int>);
-      } else if (file.name.startsWith('word/media/')) {
-        images[file.name] = Uint8List.fromList(file.content as List<int>);
-      }
-    }
-
-    if (documentXml.isEmpty) {
-      throw '無法找到 document.xml';
-    }
-
-    // 解析文字內容
-    final List<pdf_widgets.TextSpan> styledText =
-        _extractStyledTextFromDocumentXml(documentXml);
-
-    // 建立 PDF
-    final pdf = pdf_widgets.Document();
-    pdf.addPage(
-      pdf_widgets.MultiPage(
-        build: (context) {
-          final widgets = <pdf_widgets.Widget>[];
-
-          // 添加文字
-          widgets.add(
-            pdf_widgets.RichText(
-              text: pdf_widgets.TextSpan(children: styledText),
-            ),
-          );
-
-          // 添加圖片
-          for (final entry in images.entries) {
-            widgets.add(
-              pdf_widgets.Padding(
-                padding: const pdf_widgets.EdgeInsets.all(8.0),
-                child: pdf_widgets.Image(pdf_widgets.MemoryImage(entry.value)),
-              ),
-            );
-          }
-
-          return widgets;
-        },
-      ),
-    );
+    // 發送請求
+    var response = await request.send();
 
     //保存 PDF
     Directory pdfDir = await _getWholeDir();
@@ -181,8 +63,15 @@ class Converter {
 
     // 儲存 PDF 到本地
     File savedPdfFile = File(pdfPath);
-    await savedPdfFile.writeAsBytes(await pdf.save());
 
+    // 檢查回應狀態
+    if (response.statusCode == 200) {
+      // API 返回的檔案流
+      var pdf = await response.stream.toBytes();
+      await savedPdfFile.writeAsBytes(pdf);
+    } else {
+      print('檔案上傳失敗，狀態碼：${response.statusCode}');
+    }
     return savedPdfFile;
   }
 }
