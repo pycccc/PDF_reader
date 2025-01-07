@@ -214,17 +214,18 @@ class _PdfViewPageState extends State<PdfViewPage> {
     _hideOverlay(); // 隱藏舊的 Overlay
 
     final overlay = Overlay.of(context);
-    if (region != null && overlay != null) {
+    if (overlay != null) {
       // 呼叫 Google Translate API 翻譯
       final translatedText =
           await _translateService.translate(text, 'zh-TW'); // 目標語言為中文
+      if (_overlayEntry != null) return; // 防止完成后再次插入
 
       _overlayEntry = OverlayEntry(
         builder: (context) {
           return Positioned(
-            bottom: 20, // 固定在底部，與屏幕底部留一點距離
-            left: 10, // 可以根據需要調整水平位置
-            right: 10, // 使寬度自適應
+            bottom: 0, // 固定在底部，與屏幕底部留一點距離
+            left: 0,
+            right: 0,
             child: Material(
               elevation: 4,
               color: Colors.white,
