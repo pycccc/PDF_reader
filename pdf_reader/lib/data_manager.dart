@@ -305,4 +305,44 @@ class DataManager {
       rethrow;
     }
   }
+
+  // 分割檔案
+  Future<void> splitFile(
+      File fileToSplit, List<int> pageRanges, String outputFileName) async {
+    final PdfDocument document =
+        PdfDocument(inputBytes: await fileToSplit.readAsBytes());
+    final PdfDocument splitDocument = PdfDocument();
+
+    try {
+      for (int pageIndex in pageRanges) {
+        if (pageIndex < 1 || pageIndex > document.pages.count) {
+          throw Exception("頁數範圍無效：$pageIndex");
+        }
+
+        final PdfTemplate template =
+            document.pages[pageIndex - 1].createTemplate();
+        splitDocument.pages.add().graphics.drawPdfTemplate(
+              template,
+              Offset(0, 0),
+            );
+      }
+
+      // 根據原始檔案的路徑動態生成新檔案的存放位置
+      final String originalDir = fileToSplit.parent.path;
+      final String outputPath = '$originalDir/$outputFileName';
+      final File outputFile = File(outputPath);
+
+      await outputFile.writeAsBytes(await splitDocument.save());
+
+      addFile(Document(name: outputFileName, path: outputFile.path));
+
+      print("PDF 分割成功，另存為：$outputPath");
+    } catch (e) {
+      print("分割 PDF 發生錯誤：$e");
+      rethrow;
+    } finally {
+      document.dispose();
+      splitDocument.dispose();
+    }
+  }
 }
