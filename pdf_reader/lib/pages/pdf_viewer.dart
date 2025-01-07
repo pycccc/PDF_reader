@@ -37,11 +37,13 @@ class _PdfViewPageState extends State<PdfViewPage> {
   bool _isStickyNoteEnabled = false; // 追蹤 Sticky Note 的狀態
   File? _pdfFile; // 新增變數來存儲 PDF 檔案
   bool _isSignatureModeEnabled = false; // 控制簽名模式開關
+  int _rotationAngle = 0; // 用於追踪旋轉角度 (0°, 90°, 180°, 270°)
 
   @override
   void initState() {
     super.initState();
     _searchController.addListener(_onSearchTextChanged);
+    _pdfFile = File(widget.filePath); // 初始化 _pdfFile
   }
 
   @override
@@ -50,6 +52,41 @@ class _PdfViewPageState extends State<PdfViewPage> {
     _searchController.dispose();
     _hideOverlay(); // 隱藏翻譯結果的 Overlay
     super.dispose();
+  }
+
+  /// 旋轉 PDF 並保存到本地
+  Future<File> _rotatePdf(File inputPdf, int pageNumber, int angle) async {
+    final PdfDocument document =
+        PdfDocument(inputBytes: inputPdf.readAsBytesSync());
+    // 找到指定頁面，計算新旋轉角度
+    final PdfPage page = document.pages[pageNumber - 1];
+    final currentRotation = page.rotation.index * 90;
+    final newRotation = (currentRotation + angle) % 360;
+    page.rotation = PdfPageRotateAngle.values[newRotation ~/ 90];
+    final List<int> bytes = await document.save();
+    document.dispose();
+    await inputPdf.writeAsBytes(bytes);
+    return inputPdf;
+  }
+
+  /// 按下旋轉按鈕時執行的邏輯
+  void _rotateAndReloadPdf() async {
+    try {
+      final currentPage = _pdfViewerController.pageNumber; // 獲取當前頁面
+      final rotatedFile =
+          await _rotatePdf(_pdfFile!, currentPage, 90); // 旋轉 PDF
+      setState(() {
+        _pdfFile = rotatedFile; // 更新為最新的旋轉後文件
+      });
+      // 等待 Viewer 重新加載後跳轉回原頁面
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _pdfViewerController.jumpToPage(currentPage);
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("旋轉發生錯誤: $e")),
+      );
+    }
   }
 
   /// 搜尋功能
@@ -209,10 +246,30 @@ class _PdfViewPageState extends State<PdfViewPage> {
                       style: const TextStyle(color: Colors.black),
                     ),
                     const SizedBox(height: 8),
-                    TextButton(
-                      onPressed: _hideOverlay,
-                      child: const Text("關閉",
-                          style: TextStyle(color: Colors.blue)),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        // 添加複製按鈕
+                        TextButton.icon(
+                          onPressed: () {
+                            Clipboard.setData(
+                                ClipboardData(text: translatedText));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text("已複製到剪貼板")),
+                            );
+                          },
+                          icon: const Icon(Icons.copy, color: Colors.blue),
+                          label: const Text(
+                            "複製",
+                            style: TextStyle(color: Colors.blue),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: _hideOverlay,
+                          child: const Text("關閉",
+                              style: TextStyle(color: Colors.blue)),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -221,7 +278,6 @@ class _PdfViewPageState extends State<PdfViewPage> {
           );
         },
       );
-
       overlay.insert(_overlayEntry!);
     }
   }
@@ -229,7 +285,6 @@ class _PdfViewPageState extends State<PdfViewPage> {
   /// 隱藏翻譯結果的 Overlay
   void _hideOverlay() {
     if (_overlayEntry != null) {
-      print('正在隱藏翻譯结果...');
       _overlayEntry!.remove(); // 移除 OverlayEntry
       _overlayEntry = null; // 清空引用
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -454,6 +509,11 @@ class _PdfViewPageState extends State<PdfViewPage> {
                   onPressed: _searchNext,
                   icon: const Icon(Icons.arrow_downward),
                   tooltip: "下一個結果",
+                ),
+                IconButton(
+                  icon: const Icon(Icons.rotate_right),
+                  onPressed: _rotateAndReloadPdf,
+                  tooltip: "旋轉頁面",
                 ),
               ],
             ),
