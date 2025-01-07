@@ -1,8 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
-// import 'package:pdf/pdf.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
 import 'dart:convert';
 import 'data_structure.dart';
 import 'dart:io';
@@ -65,12 +63,23 @@ class DataManager {
   Future<void> renameFile(Document fileToRename, String newName) async {
     final file = File(fileToRename.path);
 
-    newName = newName + '.pdf';
-    String newPath = file.parent.path + '/' + newName;
+    Folder curr = getPageFolder();
+    int sameNameCnt = 0;
+    for (var file in curr.files) {
+      final regex = RegExp(r'^(.+?)\(\d+\)$');
+      final match = regex.firstMatch(file.name);
+      if (match?.group(1).toString() == '$newName.pdf' ||
+          file.name == '$newName.pdf') {
+        sameNameCnt++;
+      }
+    }
+    if (sameNameCnt > 0) newName = '$newName($sameNameCnt)';
+    newName = '$newName.pdf';
+    String newPath = '${file.parent.path}/$newName';
+
     if (await file.exists()) {
       final renamedFile = await file.rename(newPath);
 
-      Folder curr = getPageFolder();
       int fileToRenameIdx =
           curr.files.indexWhere((file) => file.name == fileToRename.name);
       curr.files[fileToRenameIdx].name = newName;
@@ -94,7 +103,28 @@ class DataManager {
       wholeDir += currDir;
     }
     wholeDir += '/';
-    wholeDir += folderToAdd.name;
+
+    Folder curr = getPageFolder();
+
+    // 重複命名
+    String newName = folderToAdd.name.trim();
+    int sameNameCnt = 0;
+    for (var folder in curr.folders) {
+      final regex = RegExp(r'^(.+?)\(\d+\)$');
+      final match = regex.firstMatch(folder.name.trim());
+      if (match?.group(1).toString() == newName ||
+          folder.name.trim() == newName) {
+        sameNameCnt++;
+      }
+    }
+    if (sameNameCnt > 0) {
+      newName = '$newName($sameNameCnt)';
+    }
+
+    folderToAdd.name = newName;
+    String newPath = '$wholeDir/$newName';
+
+    wholeDir += newPath;
 
     final Directory folderDir = Directory(wholeDir);
     if (!await folderDir.exists()) {
@@ -105,8 +135,6 @@ class DataManager {
       saveData();
     } else {
       print('資料夾已存在: ${folderDir.path}');
-      // TODO
-      // if("getPageFolder().folders 裡面有依樣名字的")
       getPageFolder().folders.add(folderToAdd);
       saveData();
     }
@@ -161,14 +189,28 @@ class DataManager {
       wholeDir += currDir;
     }
 
-    String oldPath = wholeDir + '/' + folderToRename.name;
-    String newPath = wholeDir + '/' + newName;
+    String oldPath = '$wholeDir/${folderToRename.name}';
 
     final Directory directory = Directory(oldPath);
+    Folder curr = getPageFolder();
+
+    // 重複命名
+    int sameNameCnt = 0;
+    for (var folder in curr.folders) {
+      final regex = RegExp(r'^(.+?)\(\d+\)$');
+      final match = regex.firstMatch(folder.name);
+      if (match?.group(1).toString() == newName || folder.name == newName) {
+        sameNameCnt++;
+      }
+    }
+    if (sameNameCnt > 0) {
+      newName = '$newName($sameNameCnt)';
+    }
+    String newPath = '$wholeDir/$newName';
+
     if (await directory.exists()) {
       final renamedDirectory = await directory.rename(newPath);
 
-      Folder curr = getPageFolder();
       int folderToRenameIdx = curr.folders
           .indexWhere((folder) => folder.name == folderToRename.name);
 
@@ -235,12 +277,6 @@ class DataManager {
         // 釋放資源
         document.dispose();
       }
-
-      // // 保存合併後的文檔到本地
-      // final Directory outputDir = await getApplicationDocumentsDirectory();
-      // final String outputPath = '${outputDir.path}/$outputFileName';
-      // final File outputFile = File(outputPath);
-      // await outputFile.writeAsBytes(mergedDocument.saveSync());
 
       // 獲取 pdf_reader 資料夾
       final Directory appDocDir = await getApplicationDocumentsDirectory();
