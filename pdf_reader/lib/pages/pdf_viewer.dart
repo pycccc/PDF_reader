@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:pdf_reader/pages/google_translate.dart';
 import 'package:flutter/services.dart'; // 提供 rootBundle
 import 'signatureDialog.dart';
 
@@ -25,20 +26,24 @@ class _PdfViewPageState extends State<PdfViewPage> {
   final PdfViewerController _pdfViewerController = PdfViewerController();
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _zoomController =
-  TextEditingController(text: "100");
+      TextEditingController(text: "100");
+  final GoogleTranslateService _translateService = GoogleTranslateService(
+      'AIzaSyCKJegTPj-NDXtwvSNzExUkJkDurPCzMWs'); // 替換成你的金鑰
 
   PdfTextSearchResult _searchResult = PdfTextSearchResult();
   bool _isPdfLoaded = false;
   OverlayEntry? _overlayEntry; // 用於顯示翻譯結果
-  List<String> _searchMatches = [];// 用來保存「搜尋到的文字清單」(忽略大小寫) ★
+  List<String> _searchMatches = []; // 用來保存「搜尋到的文字清單」(忽略大小寫) ★
   bool _isStickyNoteEnabled = false; // 追蹤 Sticky Note 的狀態
   File? _pdfFile; // 新增變數來存儲 PDF 檔案
   bool _isSignatureModeEnabled = false; // 控制簽名模式開關
+  int _rotationAngle = 0; // 用於追踪旋轉角度 (0°, 90°, 180°, 270°)
 
   @override
   void initState() {
     super.initState();
     _searchController.addListener(_onSearchTextChanged);
+    _pdfFile = File(widget.filePath); // 初始化 _pdfFile
   }
 
   @override
@@ -47,6 +52,41 @@ class _PdfViewPageState extends State<PdfViewPage> {
     _searchController.dispose();
     _hideOverlay(); // 隱藏翻譯結果的 Overlay
     super.dispose();
+  }
+
+  /// 旋轉 PDF 並保存到本地
+  Future<File> _rotatePdf(File inputPdf, int pageNumber, int angle) async {
+    final PdfDocument document =
+        PdfDocument(inputBytes: inputPdf.readAsBytesSync());
+    // 找到指定頁面，計算新旋轉角度
+    final PdfPage page = document.pages[pageNumber - 1];
+    final currentRotation = page.rotation.index * 90;
+    final newRotation = (currentRotation + angle) % 360;
+    page.rotation = PdfPageRotateAngle.values[newRotation ~/ 90];
+    final List<int> bytes = await document.save();
+    document.dispose();
+    await inputPdf.writeAsBytes(bytes);
+    return inputPdf;
+  }
+
+  /// 按下旋轉按鈕時執行的邏輯
+  void _rotateAndReloadPdf() async {
+    try {
+      final currentPage = _pdfViewerController.pageNumber; // 獲取當前頁面
+      final rotatedFile =
+          await _rotatePdf(_pdfFile!, currentPage, 90); // 旋轉 PDF
+      setState(() {
+        _pdfFile = rotatedFile; // 更新為最新的旋轉後文件
+      });
+      // 等待 Viewer 重新加載後跳轉回原頁面
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _pdfViewerController.jumpToPage(currentPage);
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("旋轉發生錯誤: $e")),
+      );
+    }
   }
 
   /// 搜尋功能
@@ -98,7 +138,7 @@ class _PdfViewPageState extends State<PdfViewPage> {
           }
           // 截取出「實際匹配」的原字串
           final matchedText =
-          pageText.substring(foundIndex, foundIndex + keyword.length);
+              pageText.substring(foundIndex, foundIndex + keyword.length);
           _searchMatches.add(matchedText);
 
           startIndex = foundIndex + keyword.length;
@@ -170,16 +210,21 @@ class _PdfViewPageState extends State<PdfViewPage> {
   }
 
   /// 顯示翻譯結果的 Overlay
-  void _showOverlay(Rect? region, String text) {
+  void _showOverlay(Rect? region, String text) async {
     _hideOverlay(); // 隱藏舊的 Overlay
 
     final overlay = Overlay.of(context);
     if (region != null && overlay != null) {
+      // 呼叫 Google Translate API 翻譯
+      final translatedText =
+          await _translateService.translate(text, 'zh-TW'); // 目標語言為中文
+
       _overlayEntry = OverlayEntry(
         builder: (context) {
           return Positioned(
-            top: region.bottom + 10, // 調整位置，顯示在功能表下方
-            left: region.left,
+            bottom: 20, // 固定在底部，與屏幕底部留一點距離
+            left: 10, // 可以根據需要調整水平位置
+            right: 10, // 使寬度自適應
             child: Material(
               elevation: 4,
               color: Colors.white,
@@ -197,14 +242,34 @@ class _PdfViewPageState extends State<PdfViewPage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      _translateToChinese(text),
+                      translatedText,
                       style: const TextStyle(color: Colors.black),
                     ),
                     const SizedBox(height: 8),
-                    TextButton(
-                      onPressed: _hideOverlay,
-                      child: const Text("關閉",
-                          style: TextStyle(color: Colors.blue)),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        // 添加複製按鈕
+                        TextButton.icon(
+                          onPressed: () {
+                            Clipboard.setData(
+                                ClipboardData(text: translatedText));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text("已複製到剪貼板")),
+                            );
+                          },
+                          icon: const Icon(Icons.copy, color: Colors.blue),
+                          label: const Text(
+                            "複製",
+                            style: TextStyle(color: Colors.blue),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: _hideOverlay,
+                          child: const Text("關閉",
+                              style: TextStyle(color: Colors.blue)),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -213,7 +278,6 @@ class _PdfViewPageState extends State<PdfViewPage> {
           );
         },
       );
-
       overlay.insert(_overlayEntry!);
     }
   }
@@ -221,24 +285,15 @@ class _PdfViewPageState extends State<PdfViewPage> {
   /// 隱藏翻譯結果的 Overlay
   void _hideOverlay() {
     if (_overlayEntry != null) {
-      _overlayEntry!.remove();
-      _overlayEntry = null;
+      _overlayEntry!.remove(); // 移除 OverlayEntry
+      _overlayEntry = null; // 清空引用
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Overlay.of(context)?.setState(() {}); // 刷新 Overlay 树
+      });
+    } else {
+      print('没有翻譯结果需要隱藏。');
     }
   }
-
-  /// 模擬將選取的文字翻譯成中文
-  String _translateToChinese(String text) {
-    // 模擬翻譯，實際可以接 API，例如 Google 翻譯 API
-    Map<String, String> mockTranslations = {
-      "equipment": "設備",
-      "flexibility": "靈活性",
-      "security": "安全性",
-    };
-
-    // 如果有對應翻譯，返回中文，否則原樣返回
-    return mockTranslations[text.toLowerCase()] ?? "翻譯後：$text";
-  }
-
 
   //annotation note
   void _enableStickyNoteAnnotationMode() {
@@ -246,19 +301,16 @@ class _PdfViewPageState extends State<PdfViewPage> {
     _pdfViewerController.annotationMode = PdfAnnotationMode.stickyNote;
     debugPrint('Sticky Note 模式啟用');
   }
+
   void disableAnnotationMode() {
     // Disable or deactivate the annotation mode.
     _pdfViewerController.annotationMode = PdfAnnotationMode.none;
     debugPrint('Sticky Note 模式關閉');
   }
 
+  void _saveAnnotations() async {}
+  void _loadAnnotations() async {}
 
-  void _saveAnnotations() async {
-
-  }
-  void _loadAnnotations() async {
-
-  }
   /// 開啟/關閉簽名模式
   void _toggleSignatureMode() {
     setState(() {
@@ -292,7 +344,8 @@ class _PdfViewPageState extends State<PdfViewPage> {
       try {
         final fileBytes = await File(widget.filePath).readAsBytes();
         final PdfDocument document = PdfDocument(inputBytes: fileBytes);
-        final PdfPage page = document.pages[_pdfViewerController.pageNumber - 1];
+        final PdfPage page =
+            document.pages[_pdfViewerController.pageNumber - 1];
 
         final PdfBitmap bitmap = PdfBitmap(signature);
 
@@ -322,6 +375,7 @@ class _PdfViewPageState extends State<PdfViewPage> {
       }
     }
   }
+
   void _showSignatureContextMenu(Rect? region) {
     if (region == null) return;
 
@@ -378,56 +432,52 @@ class _PdfViewPageState extends State<PdfViewPage> {
     final file = File(widget.filePath);
 
     return Scaffold(
-      appBar: AppBar(
-          title: Text(widget.fileName),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.save),
-              tooltip: '儲存註解',
-              onPressed: _saveAnnotations,
-            ),
-            IconButton(
-              icon: const Icon(Icons.download),
-              tooltip: '載入註解',
-              onPressed: _loadAnnotations,
-            ),
-            IconButton(
-              icon: Icon(
-                _isStickyNoteEnabled ? Icons.note : Icons.note_add,
-                color: _isStickyNoteEnabled ? Colors.blue : Colors.grey,
-              ),
-              tooltip: _isStickyNoteEnabled ? '關閉便利貼模式' : '啟用便利貼模式',
-              onPressed: () {
-                setState(() {
-                  if (_isStickyNoteEnabled) {
-                    // 如果目前已啟用，則停用
-                    disableAnnotationMode();
-                    _isStickyNoteEnabled = false;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('便利貼模式已關閉')),
-                    );
-                  } else {
-                    // 如果目前未啟用，則啟用
-                    _enableStickyNoteAnnotationMode();
-                    _isStickyNoteEnabled = true;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('便利貼模式已啟用')),
-                    );
-                  }
-                });
-              },
-            ),
-            IconButton(
-              icon: Icon(
-                _isSignatureModeEnabled ? Icons.edit : Icons.edit_off,
-                color: _isSignatureModeEnabled ? Colors.blue : Colors.grey,
-              ),
-              tooltip: _isSignatureModeEnabled ? '關閉簽名模式' : '啟用簽名模式',
-              onPressed: _toggleSignatureMode,
-            ),
-          ]
-
-      ),
+      appBar: AppBar(title: Text(widget.fileName), actions: [
+        IconButton(
+          icon: const Icon(Icons.save),
+          tooltip: '儲存註解',
+          onPressed: _saveAnnotations,
+        ),
+        IconButton(
+          icon: const Icon(Icons.download),
+          tooltip: '載入註解',
+          onPressed: _loadAnnotations,
+        ),
+        IconButton(
+          icon: Icon(
+            _isStickyNoteEnabled ? Icons.note : Icons.note_add,
+            color: _isStickyNoteEnabled ? Colors.blue : Colors.grey,
+          ),
+          tooltip: _isStickyNoteEnabled ? '關閉便利貼模式' : '啟用便利貼模式',
+          onPressed: () {
+            setState(() {
+              if (_isStickyNoteEnabled) {
+                // 如果目前已啟用，則停用
+                disableAnnotationMode();
+                _isStickyNoteEnabled = false;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('便利貼模式已關閉')),
+                );
+              } else {
+                // 如果目前未啟用，則啟用
+                _enableStickyNoteAnnotationMode();
+                _isStickyNoteEnabled = true;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('便利貼模式已啟用')),
+                );
+              }
+            });
+          },
+        ),
+        IconButton(
+          icon: Icon(
+            _isSignatureModeEnabled ? Icons.edit : Icons.edit_off,
+            color: _isSignatureModeEnabled ? Colors.blue : Colors.grey,
+          ),
+          tooltip: _isSignatureModeEnabled ? '關閉簽名模式' : '啟用簽名模式',
+          onPressed: _toggleSignatureMode,
+        ),
+      ]),
       body: Column(
         children: [
           // 🔍 搜尋工具列
@@ -460,6 +510,11 @@ class _PdfViewPageState extends State<PdfViewPage> {
                   icon: const Icon(Icons.arrow_downward),
                   tooltip: "下一個結果",
                 ),
+                IconButton(
+                  icon: const Icon(Icons.rotate_right),
+                  onPressed: _rotateAndReloadPdf,
+                  tooltip: "旋轉頁面",
+                ),
               ],
             ),
           ),
@@ -472,7 +527,7 @@ class _PdfViewPageState extends State<PdfViewPage> {
               controller: _pdfViewerController,
               // 隱藏內建的文字選取功能表，但保留文字選取功能
               enableTextSelection: true,
-              canShowTextSelectionMenu : !_isSignatureModeEnabled, // 根據簽名模式動態控制
+              canShowTextSelectionMenu: !_isSignatureModeEnabled, // 根據簽名模式動態控制
               canShowScrollHead: true,
               canShowScrollStatus: true,
               onTextSelectionChanged: (PdfTextSelectionChangedDetails details) {
@@ -501,7 +556,6 @@ class _PdfViewPageState extends State<PdfViewPage> {
             ),
           ),
 
-
           // 🔍 縮放工具列
           Container(
             color: Colors.grey[200],
@@ -512,7 +566,7 @@ class _PdfViewPageState extends State<PdfViewPage> {
                 IconButton(
                   onPressed: () {
                     double newZoom =
-                    (_pdfViewerController.zoomLevel - 0.1).clamp(0.1, 10.0);
+                        (_pdfViewerController.zoomLevel - 0.1).clamp(0.1, 10.0);
                     setState(() {
                       _pdfViewerController.zoomLevel = newZoom;
                       _zoomController.text = (newZoom * 100).toStringAsFixed(0);
@@ -541,7 +595,7 @@ class _PdfViewPageState extends State<PdfViewPage> {
                 IconButton(
                   onPressed: () {
                     double newZoom =
-                    (_pdfViewerController.zoomLevel + 0.1).clamp(0.1, 10.0);
+                        (_pdfViewerController.zoomLevel + 0.1).clamp(0.1, 10.0);
                     setState(() {
                       _pdfViewerController.zoomLevel = newZoom;
                       _zoomController.text = (newZoom * 100).toStringAsFixed(0);
