@@ -14,10 +14,8 @@ class Converter {
     file = fileToConvert;
   }
 
-// private:
-
   // 建立完整路徑
-  Future<Directory> _getWholeDir() async {
+  Future<Directory> getWholeDir() async {
     // 獲取應用文件目錄
     final Directory appDocDir = await getApplicationDocumentsDirectory();
     List<String> currDirs = datamanager.currentPath;
@@ -33,11 +31,9 @@ class Converter {
     return pdfReaderDir;
   }
 
-// public:
-
   Future<File> pdfToPdf(String filename) async {
     // 如果是 pdf，複製一份
-    Directory pdfReaderDir = await _getWholeDir();
+    Directory pdfReaderDir = await getWholeDir();
     File pdfFile = await file.copy('${pdfReaderDir.path}/$filename');
     return pdfFile;
   }
@@ -58,7 +54,7 @@ class Converter {
     var response = await request.send();
 
     //保存 PDF
-    Directory pdfDir = await _getWholeDir();
+    Directory pdfDir = await getWholeDir();
     String pdfPath = '${pdfDir.path}/${filename.split('.').first}.pdf';
 
     // 儲存 PDF 到本地

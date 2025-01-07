@@ -1,8 +1,12 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
+// import 'package:pdf/pdf.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 import 'dart:convert';
 import 'data_structure.dart';
 import 'dart:io';
+import 'dart:ui';
 
 class DataManager {
   // 確保在建立新的 DataManager 時，homeFolder 不會被重新初始化
@@ -207,5 +211,62 @@ class DataManager {
       curr = curr.folders[dest];
     }
     return curr;
+  }
+
+  // 合併檔案
+  Future<void> mergeFiles(List<File> filesToMerge) async {
+    final PdfDocument mergedDocument = PdfDocument();
+
+    try {
+      // 迭代所有要合併的文件
+      for (File file in filesToMerge) {
+        final bytes = await file.readAsBytes();
+        final PdfDocument document = PdfDocument(inputBytes: bytes);
+
+        // 將頁面加入到合併文檔中
+        for (int i = 0; i < document.pages.count; i++) {
+          final PdfTemplate template = document.pages[i].createTemplate();
+          mergedDocument.pages.add().graphics.drawPdfTemplate(
+                template,
+                Offset(0, 0),
+              );
+        }
+
+        // 釋放資源
+        document.dispose();
+      }
+
+      // // 保存合併後的文檔到本地
+      // final Directory outputDir = await getApplicationDocumentsDirectory();
+      // final String outputPath = '${outputDir.path}/$outputFileName';
+      // final File outputFile = File(outputPath);
+      // await outputFile.writeAsBytes(mergedDocument.saveSync());
+
+      // 獲取 pdf_reader 資料夾
+      final Directory appDocDir = await getApplicationDocumentsDirectory();
+      List<String> currDirs = currentPath;
+      String wholeDir = '${appDocDir.path}/pdf_reader';
+      for (var currDir in currDirs) {
+        wholeDir += '/';
+        wholeDir += currDir;
+      }
+      final Directory pdfDir = Directory(wholeDir);
+      if (!await pdfDir.exists()) {
+        await pdfDir.create(recursive: true); // 遞迴建立資料夾
+      }
+
+      String pdfPath = '${pdfDir.path}/mergedFile.pdf';
+
+      // 儲存 PDF 到本地
+      File savedPdfFile = File(pdfPath);
+      await savedPdfFile.writeAsBytes(await mergedDocument.save()).then((s) =>
+          {addFile(Document(name: 'mergedFile.pdf', path: savedPdfFile.path))});
+
+      // 清理資源
+      mergedDocument.dispose();
+    } catch (e) {
+      print("合併 PDF 發生錯誤: $e");
+      rethrow;
+    }
   }
 }

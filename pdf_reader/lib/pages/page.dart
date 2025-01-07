@@ -199,12 +199,12 @@ Widget buildFileMenu(BuildContext context,
   );
 }
 
-// 建立檔案選單項目
+// 建立合併項目
 Widget buildMergeOption(BuildContext context,
     {required IconData icon,
     required String label,
     required String value,
-    required List<Document> filesToMerge}) {
+    required List<File> filesToMerge}) {
   return GestureDetector(
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
@@ -217,8 +217,23 @@ Widget buildMergeOption(BuildContext context,
       ),
     ),
     onTap: () async {
-      Navigator.of(context).pop(); // 關閉選單
-      // TODO
+      await dataManager.mergeFiles(filesToMerge);
+      if (context.mounted) {
+        String? newFilename = await _addItemScreen(context, "命名合併檔案", "檔案名稱");
+        if (newFilename != null) {
+          Folder currFolder = dataManager.getPageFolder();
+          List<Document> currFiles = currFolder.files;
+          int fileToRenameIdx =
+              currFiles.indexWhere((file) => file.name == "mergedFile.pdf");
+          if (fileToRenameIdx >= 0) {
+            await dataManager
+                .renameFile(currFiles[fileToRenameIdx], newFilename)
+                .then((s) {
+              if (context.mounted) reloadPage(context);
+            });
+          }
+        }
+      }
     },
   );
 }
@@ -281,7 +296,7 @@ void showMenuSheet(context, Data item) async {
 }
 
 // 顯示合併清單
-void showMergeOption(context, List<Document> filesToMerge) async {
+void showMergeOption(context, List<File> filesToMerge) async {
   await showDialog(
       context: context,
       barrierColor: const Color.fromARGB(20, 0, 0, 0),
@@ -587,11 +602,13 @@ class FolderPage extends StatelessWidget {
                               : {...selectedSet..add(index)};
 
                           if (selectedSet.contains(index)) {
-                            List<Document> filesToMerge = [];
+                            List<File> filesToMerge = [];
                             for (int selectIdx in selectedSet) {
                               if (selectIdx > currFolder.folders.length - 1) {
-                                filesToMerge.add(currFolder.files[
-                                    selectIdx - currFolder.folders.length]);
+                                filesToMerge.add(File(currFolder
+                                    .files[
+                                        selectIdx - currFolder.folders.length]
+                                    .path));
                               }
                             }
 
@@ -724,11 +741,13 @@ class HomePage extends StatelessWidget {
                               : {...selectedSet..add(index)};
 
                           if (selectedSet.contains(index)) {
-                            List<Document> filesToMerge = [];
+                            List<File> filesToMerge = [];
                             for (int selectIdx in selectedSet) {
                               if (selectIdx > currFolder.folders.length - 1) {
-                                filesToMerge.add(currFolder.files[
-                                    selectIdx - currFolder.folders.length]);
+                                filesToMerge.add(File(currFolder
+                                    .files[
+                                        selectIdx - currFolder.folders.length]
+                                    .path));
                               }
                             }
 
