@@ -43,6 +43,112 @@ Future<String?> _addItemScreen(
   );
 }
 
+Future<void> showSplitFileDialog(BuildContext context, Document file) async {
+  TextEditingController startPageController = TextEditingController();
+  TextEditingController endPageController = TextEditingController();
+  TextEditingController outputFileNameController = TextEditingController();
+
+  await showDialog(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        title: Text("分割檔案"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: startPageController,
+              decoration: InputDecoration(
+                labelText: "從第幾頁 ",
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.number,
+            ),
+            SizedBox(height: 16),
+            TextField(
+              controller: endPageController,
+              decoration: InputDecoration(
+                labelText: "到第幾頁",
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.number,
+            ),
+            SizedBox(height: 16),
+            TextField(
+              controller: outputFileNameController,
+              decoration: InputDecoration(
+                labelText: "輸出文件名稱",
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text("取消"),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final String startPageInput = startPageController.text.trim();
+              final String endPageInput = endPageController.text.trim();
+              final String outputFileName =
+                  outputFileNameController.text.trim();
+
+              if (startPageInput.isEmpty ||
+                  endPageInput.isEmpty ||
+                  outputFileName.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text("請完整填寫正確頁數範圍＆文件名稱")),
+                );
+                return;
+              }
+
+              // 解析頁数範圍
+              int startPage;
+              int endPage;
+              try {
+                startPage = int.parse(startPageInput);
+                endPage = int.parse(endPageInput);
+
+                if (startPage < 1 || endPage < startPage) {
+                  throw Exception("無效的頁數範圍");
+                }
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text("頁數範圍格式無效，請輸入有效的數字")),
+                );
+                return;
+              }
+
+              try {
+                // 生成頁數範圍
+                List<int> pageRanges = List.generate(
+                    endPage - startPage + 1, (index) => startPage + index);
+                await dataManager.splitFile(
+                  File(file.path),
+                  pageRanges,
+                  outputFileName,
+                );
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text("分割成功: $outputFileName")),
+                );
+                Navigator.of(context).pop(); // 關閉對話框
+                if (context.mounted) reloadPage(context); // 刷新頁面
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text("分割失败: $e")),
+                );
+              }
+            },
+            child: const Text("分割"),
+          ),
+        ],
+      );
+    },
+  );
+}
+
 // 打開檔案選擇器並轉換為 PDF
 Future<String> pickAndConvertFile() async {
   try {
@@ -192,7 +298,7 @@ Widget buildFileMenu(BuildContext context,
           }
           break;
         case 'divide': // 分割檔案
-          // TODO
+          await showSplitFileDialog(context, item as Document);
           break;
       }
     },
