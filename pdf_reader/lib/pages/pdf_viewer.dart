@@ -25,12 +25,12 @@ class _PdfViewPageState extends State<PdfViewPage> {
   final PdfViewerController _pdfViewerController = PdfViewerController();
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _zoomController =
-  TextEditingController(text: "100");
+      TextEditingController(text: "100");
 
   PdfTextSearchResult _searchResult = PdfTextSearchResult();
   bool _isPdfLoaded = false;
   OverlayEntry? _overlayEntry; // 用於顯示翻譯結果
-  List<String> _searchMatches = [];// 用來保存「搜尋到的文字清單」(忽略大小寫) ★
+  List<String> _searchMatches = []; // 用來保存「搜尋到的文字清單」(忽略大小寫) ★
   bool _isStickyNoteEnabled = false; // 追蹤 Sticky Note 的狀態
   File? _pdfFile; // 新增變數來存儲 PDF 檔案
   bool _isSignatureModeEnabled = false; // 控制簽名模式開關
@@ -98,7 +98,7 @@ class _PdfViewPageState extends State<PdfViewPage> {
           }
           // 截取出「實際匹配」的原字串
           final matchedText =
-          pageText.substring(foundIndex, foundIndex + keyword.length);
+              pageText.substring(foundIndex, foundIndex + keyword.length);
           _searchMatches.add(matchedText);
 
           startIndex = foundIndex + keyword.length;
@@ -178,8 +178,9 @@ class _PdfViewPageState extends State<PdfViewPage> {
       _overlayEntry = OverlayEntry(
         builder: (context) {
           return Positioned(
-            top: region.bottom + 10, // 調整位置，顯示在功能表下方
-            left: region.left,
+            bottom: 20, // 固定在底部，與屏幕底部留一點距離
+            left: 10, // 可以根據需要調整水平位置
+            right: 10, // 使寬度自適應
             child: Material(
               elevation: 4,
               color: Colors.white,
@@ -239,26 +240,22 @@ class _PdfViewPageState extends State<PdfViewPage> {
     return mockTranslations[text.toLowerCase()] ?? "翻譯後：$text";
   }
 
-
   //annotation note
   void _enableStickyNoteAnnotationMode() {
     // Enable the sticky note annotation mode.
     _pdfViewerController.annotationMode = PdfAnnotationMode.stickyNote;
     debugPrint('Sticky Note 模式啟用');
   }
+
   void disableAnnotationMode() {
     // Disable or deactivate the annotation mode.
     _pdfViewerController.annotationMode = PdfAnnotationMode.none;
     debugPrint('Sticky Note 模式關閉');
   }
 
+  void _saveAnnotations() async {}
+  void _loadAnnotations() async {}
 
-  void _saveAnnotations() async {
-
-  }
-  void _loadAnnotations() async {
-
-  }
   /// 開啟/關閉簽名模式
   void _toggleSignatureMode() {
     setState(() {
@@ -292,7 +289,8 @@ class _PdfViewPageState extends State<PdfViewPage> {
       try {
         final fileBytes = await File(widget.filePath).readAsBytes();
         final PdfDocument document = PdfDocument(inputBytes: fileBytes);
-        final PdfPage page = document.pages[_pdfViewerController.pageNumber - 1];
+        final PdfPage page =
+            document.pages[_pdfViewerController.pageNumber - 1];
 
         final PdfBitmap bitmap = PdfBitmap(signature);
 
@@ -322,6 +320,7 @@ class _PdfViewPageState extends State<PdfViewPage> {
       }
     }
   }
+
   void _showSignatureContextMenu(Rect? region) {
     if (region == null) return;
 
@@ -378,56 +377,52 @@ class _PdfViewPageState extends State<PdfViewPage> {
     final file = File(widget.filePath);
 
     return Scaffold(
-      appBar: AppBar(
-          title: Text(widget.fileName),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.save),
-              tooltip: '儲存註解',
-              onPressed: _saveAnnotations,
-            ),
-            IconButton(
-              icon: const Icon(Icons.download),
-              tooltip: '載入註解',
-              onPressed: _loadAnnotations,
-            ),
-            IconButton(
-              icon: Icon(
-                _isStickyNoteEnabled ? Icons.note : Icons.note_add,
-                color: _isStickyNoteEnabled ? Colors.blue : Colors.grey,
-              ),
-              tooltip: _isStickyNoteEnabled ? '關閉便利貼模式' : '啟用便利貼模式',
-              onPressed: () {
-                setState(() {
-                  if (_isStickyNoteEnabled) {
-                    // 如果目前已啟用，則停用
-                    disableAnnotationMode();
-                    _isStickyNoteEnabled = false;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('便利貼模式已關閉')),
-                    );
-                  } else {
-                    // 如果目前未啟用，則啟用
-                    _enableStickyNoteAnnotationMode();
-                    _isStickyNoteEnabled = true;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('便利貼模式已啟用')),
-                    );
-                  }
-                });
-              },
-            ),
-            IconButton(
-              icon: Icon(
-                _isSignatureModeEnabled ? Icons.edit : Icons.edit_off,
-                color: _isSignatureModeEnabled ? Colors.blue : Colors.grey,
-              ),
-              tooltip: _isSignatureModeEnabled ? '關閉簽名模式' : '啟用簽名模式',
-              onPressed: _toggleSignatureMode,
-            ),
-          ]
-
-      ),
+      appBar: AppBar(title: Text(widget.fileName), actions: [
+        IconButton(
+          icon: const Icon(Icons.save),
+          tooltip: '儲存註解',
+          onPressed: _saveAnnotations,
+        ),
+        IconButton(
+          icon: const Icon(Icons.download),
+          tooltip: '載入註解',
+          onPressed: _loadAnnotations,
+        ),
+        IconButton(
+          icon: Icon(
+            _isStickyNoteEnabled ? Icons.note : Icons.note_add,
+            color: _isStickyNoteEnabled ? Colors.blue : Colors.grey,
+          ),
+          tooltip: _isStickyNoteEnabled ? '關閉便利貼模式' : '啟用便利貼模式',
+          onPressed: () {
+            setState(() {
+              if (_isStickyNoteEnabled) {
+                // 如果目前已啟用，則停用
+                disableAnnotationMode();
+                _isStickyNoteEnabled = false;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('便利貼模式已關閉')),
+                );
+              } else {
+                // 如果目前未啟用，則啟用
+                _enableStickyNoteAnnotationMode();
+                _isStickyNoteEnabled = true;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('便利貼模式已啟用')),
+                );
+              }
+            });
+          },
+        ),
+        IconButton(
+          icon: Icon(
+            _isSignatureModeEnabled ? Icons.edit : Icons.edit_off,
+            color: _isSignatureModeEnabled ? Colors.blue : Colors.grey,
+          ),
+          tooltip: _isSignatureModeEnabled ? '關閉簽名模式' : '啟用簽名模式',
+          onPressed: _toggleSignatureMode,
+        ),
+      ]),
       body: Column(
         children: [
           // 🔍 搜尋工具列
@@ -472,7 +467,7 @@ class _PdfViewPageState extends State<PdfViewPage> {
               controller: _pdfViewerController,
               // 隱藏內建的文字選取功能表，但保留文字選取功能
               enableTextSelection: true,
-              canShowTextSelectionMenu : !_isSignatureModeEnabled, // 根據簽名模式動態控制
+              canShowTextSelectionMenu: !_isSignatureModeEnabled, // 根據簽名模式動態控制
               canShowScrollHead: true,
               canShowScrollStatus: true,
               onTextSelectionChanged: (PdfTextSelectionChangedDetails details) {
@@ -501,7 +496,6 @@ class _PdfViewPageState extends State<PdfViewPage> {
             ),
           ),
 
-
           // 🔍 縮放工具列
           Container(
             color: Colors.grey[200],
@@ -512,7 +506,7 @@ class _PdfViewPageState extends State<PdfViewPage> {
                 IconButton(
                   onPressed: () {
                     double newZoom =
-                    (_pdfViewerController.zoomLevel - 0.1).clamp(0.1, 10.0);
+                        (_pdfViewerController.zoomLevel - 0.1).clamp(0.1, 10.0);
                     setState(() {
                       _pdfViewerController.zoomLevel = newZoom;
                       _zoomController.text = (newZoom * 100).toStringAsFixed(0);
@@ -541,7 +535,7 @@ class _PdfViewPageState extends State<PdfViewPage> {
                 IconButton(
                   onPressed: () {
                     double newZoom =
-                    (_pdfViewerController.zoomLevel + 0.1).clamp(0.1, 10.0);
+                        (_pdfViewerController.zoomLevel + 0.1).clamp(0.1, 10.0);
                     setState(() {
                       _pdfViewerController.zoomLevel = newZoom;
                       _zoomController.text = (newZoom * 100).toStringAsFixed(0);
