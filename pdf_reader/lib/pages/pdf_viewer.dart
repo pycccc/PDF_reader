@@ -288,11 +288,10 @@ class _PdfViewPageState extends State<PdfViewPage> {
       _overlayEntry!.remove(); // 移除 OverlayEntry
       _overlayEntry = null; // 清空引用
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        Overlay.of(context)?.setState(() {}); // 刷新 Overlay 树
+        setState(() {}); // 刷新 Overlay 树
       });
-    } else {
-      print('没有翻譯结果需要隱藏。');
     }
+    return;
   }
 
   //annotation note
