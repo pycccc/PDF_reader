@@ -311,7 +311,8 @@ class _PdfViewPageState extends State<PdfViewPage> {
       final PdfDocument document = PdfDocument(inputBytes: pdfBytes);
 
       // 匯出註解為 XFDF 格式
-      final List<int> xfdfData = document.exportAnnotation(PdfAnnotationDataFormat.xfdf);
+      final List<int> xfdfData =
+          document.exportAnnotation(PdfAnnotationDataFormat.xfdf);
 
       // 儲存到 XFDF 檔案
       final File annotationFile = File('${widget.filePath}_annotations.xfdf');
@@ -333,6 +334,7 @@ class _PdfViewPageState extends State<PdfViewPage> {
       debugPrint('❌ [Save Error] $e');
     }
   }
+
   /// 開啟/關閉簽名模式
   void _toggleSignatureMode() {
     setState(() {
@@ -448,6 +450,7 @@ class _PdfViewPageState extends State<PdfViewPage> {
 
     overlay.insert(_overlayEntry!);
   }
+
   /// 清除所有註解、便利貼和簽名
   void _clearAnnotations() async {
     try {
@@ -477,6 +480,7 @@ class _PdfViewPageState extends State<PdfViewPage> {
       );
     }
   }
+
   @override
   Widget build(BuildContext context) {
     final file = File(widget.filePath);

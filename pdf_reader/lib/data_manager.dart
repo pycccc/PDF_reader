@@ -52,10 +52,10 @@ class DataManager {
       getPageFolder()
           .files
           .removeWhere((item) => item.name == fileToDelete.name);
-      print("已刪除檔案: " + file.path);
+      print('已刪除檔案: ${file.path}');
       saveData();
     } else {
-      print("檔案不存在: " + file.path);
+      print('檔案不存在: ${file.path}');
     }
   }
 
@@ -259,14 +259,12 @@ class DataManager {
       int maxSameNameCnt = -1;
       if (curr.folders.indexWhere((folder) => folder.name == newName) >= 0) {
         for (var folder in curr.folders) {
-          print("folder name = " + folder.name);
           final regex = RegExp(r'^(.+?)\((\d+)\)$');
           final match = regex.firstMatch(folder.name);
           if (match?.group(1).toString() == newName || folder.name == newName) {
             if (match != null && match.group(2) != null) {
               int matchNum = int.parse(match.group(2).toString());
               maxSameNameCnt = matchNum > sameNameCnt ? matchNum : sameNameCnt;
-              print("----------" + maxSameNameCnt.toString());
             }
             sameNameCnt++;
           }
