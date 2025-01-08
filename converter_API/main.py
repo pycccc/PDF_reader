@@ -23,6 +23,13 @@ def convert_with_libreoffice(input_file: Path, output_file: Path):
 
 @app.post("/convert")
 async def convert_file_to_pdf(file: UploadFile):
+
+    for fileInServer in os.listdir(UPLOAD_DIR):
+        os.remove(UPLOAD_DIR/fileInServer)
+
+    for fileInServer in os.listdir(OUTPUT_DIR):
+        os.remove(OUTPUT_DIR/fileInServer)
+
     input_file = UPLOAD_DIR / file.filename
     with open(input_file, "wb") as f:
         f.write(await file.read())

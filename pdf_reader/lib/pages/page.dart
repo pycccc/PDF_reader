@@ -168,22 +168,10 @@ Future<String> pickAndConvertFile() async {
     File pdfFile;
     Converter converter = Converter(selectedFile);
 
-    // 重複命名
     String newName = selectedName.split('.').first;
-    Folder curr = dataManager.getPageFolder();
-    int sameNameCnt = 0;
-    for (var file in curr.files) {
-      final regex = RegExp(r'^(.+?)\(\d+\)$');
-      final match = regex.firstMatch(file.name.split('.').first);
-      if (match?.group(1).toString() == newName ||
-          file.name.split('.').first == newName) {
-        sameNameCnt++;
-      }
-    }
-    if (sameNameCnt > 0) {
-      newName = '$newName($sameNameCnt)';
-    }
-    newName = '$newName.${selectedName.split('.').last}';
+    List<String> newfile = dataManager.pathWithoutDuplicate(
+        "file", selectedFile.path, '$newName.pdf');
+    newName = newfile.last;
 
     // pdf to pdf
     if (selectedName.endsWith('.pdf')) {
