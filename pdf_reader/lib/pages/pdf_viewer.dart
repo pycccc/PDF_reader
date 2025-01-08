@@ -5,7 +5,7 @@ import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf_reader/pages/google_translate.dart';
-import 'package:flutter/services.dart'; // 提供 rootBundle
+import 'package:flutter/services.dart';
 import 'signatureDialog.dart';
 
 class PdfViewPage extends StatefulWidget {
@@ -33,7 +33,7 @@ class _PdfViewPageState extends State<PdfViewPage> {
   PdfTextSearchResult _searchResult = PdfTextSearchResult();
   bool _isPdfLoaded = false;
   OverlayEntry? _overlayEntry; // 用於顯示翻譯結果
-  List<String> _searchMatches = []; // 用來保存「搜尋到的文字清單」(忽略大小寫) ★
+  List<String> _searchMatches = []; // 用來保存「搜尋到的文字清單」(忽略大小寫)
   bool _isStickyNoteEnabled = false; // 追蹤 Sticky Note 的狀態
   File? _pdfFile; // 新增變數來存儲 PDF 檔案
   bool _isSignatureModeEnabled = false; // 控制簽名模式開關
@@ -48,6 +48,7 @@ class _PdfViewPageState extends State<PdfViewPage> {
 
   @override
   void dispose() {
+    _saveAnnotations(); // Save annotations when leaving the screen
     _searchController.removeListener(_onSearchTextChanged);
     _searchController.dispose();
     _hideOverlay(); // 隱藏翻譯結果的 Overlay
@@ -98,27 +99,20 @@ class _PdfViewPageState extends State<PdfViewPage> {
       );
       return;
     }
-    //
-    // // 如果之前搜尋過，先清除舊結果
-    // if (_searchResult.hasResult) {
-    //   _searchResult.clear();
-    // }
     _searchMatches.clear(); // 清空「匹配文字」清單
 
     try {
-      // (A) 先透過 Syncfusion PDF Viewer 來搜尋並高亮顯示
+      // 先透過 Syncfusion PDF Viewer 來搜尋並顯示
       //     TextSearchOption.none 表示忽略大小寫的搜尋
       final result = await _pdfViewerController.searchText(
         keyword,
       );
       print(
           '搜尋結果: hasResult=${result.hasResult}, totalInstanceCount=${result.totalInstanceCount}');
-
       setState(() {
         _searchResult = result;
       });
-
-      // (B) 額外自己打開 PDF，將所有「實際符合的字串」（忽略大小寫）存入 _searchMatches
+      // 額外自己打開 PDF，將所有「實際符合的字串」（忽略大小寫）存入 _searchMatches
       final fileBytes = await File(widget.filePath).readAsBytes();
       final PdfDocument document = PdfDocument(inputBytes: fileBytes);
 
@@ -295,7 +289,7 @@ class _PdfViewPageState extends State<PdfViewPage> {
     return;
   }
 
-  //annotation note
+  ///annotation note
   void _enableStickyNoteAnnotationMode() {
     // Enable the sticky note annotation mode.
     _pdfViewerController.annotationMode = PdfAnnotationMode.stickyNote;
@@ -305,12 +299,40 @@ class _PdfViewPageState extends State<PdfViewPage> {
   void disableAnnotationMode() {
     // Disable or deactivate the annotation mode.
     _pdfViewerController.annotationMode = PdfAnnotationMode.none;
+    _saveAnnotations(); // Save annotations when exiting annotation mode
     debugPrint('Sticky Note 模式關閉');
   }
 
-  void _saveAnnotations() async {}
-  void _loadAnnotations() async {}
+  Future<void> _saveAnnotations() async {
+    try {
+      final file = File(widget.filePath);
+      final pdfBytes = await file.readAsBytes();
 
+      final PdfDocument document = PdfDocument(inputBytes: pdfBytes);
+
+      // 匯出註解為 XFDF 格式
+      final List<int> xfdfData = document.exportAnnotation(PdfAnnotationDataFormat.xfdf);
+
+      // 儲存到 XFDF 檔案
+      final File annotationFile = File('${widget.filePath}_annotations.xfdf');
+      await annotationFile.writeAsBytes(xfdfData);
+
+      // 儲存 PDF 文件
+      final List<int> savedBytes = await document.save();
+      await file.writeAsBytes(savedBytes);
+
+      document.dispose();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('已儲存標註.')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error saving annotations: $e')),
+      );
+      debugPrint('❌ [Save Error] $e');
+    }
+  }
   /// 開啟/關閉簽名模式
   void _toggleSignatureMode() {
     setState(() {
@@ -426,7 +448,35 @@ class _PdfViewPageState extends State<PdfViewPage> {
 
     overlay.insert(_overlayEntry!);
   }
+  /// 清除所有註解、便利貼和簽名
+  void _clearAnnotations() async {
+    try {
+      final outputDir = await getApplicationDocumentsDirectory();
+      final outputPath = '${outputDir.path}/output_with_annotations.pdf';
+      final file = File(outputPath);
 
+      if (await file.exists()) {
+        setState(() {
+          _pdfFile = file;
+        });
+
+        // 強制刷新 PDF 檢視器
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => PdfViewPage(
+              filePath: outputPath,
+              fileName: 'output_with_annotations.pdf',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('清除註解時發生錯誤: $e')),
+      );
+    }
+  }
   @override
   Widget build(BuildContext context) {
     final file = File(widget.filePath);
@@ -439,9 +489,9 @@ class _PdfViewPageState extends State<PdfViewPage> {
           onPressed: _saveAnnotations,
         ),
         IconButton(
-          icon: const Icon(Icons.download),
-          tooltip: '載入註解',
-          onPressed: _loadAnnotations,
+          icon: const Icon(Icons.delete_forever),
+          tooltip: '清除所有註解',
+          onPressed: _clearAnnotations,
         ),
         IconButton(
           icon: Icon(
