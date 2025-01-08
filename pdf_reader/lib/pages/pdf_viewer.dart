@@ -48,7 +48,6 @@ class _PdfViewPageState extends State<PdfViewPage> {
 
   @override
   void dispose() {
-    _saveAnnotations(); // Save annotations when leaving the screen
     _searchController.removeListener(_onSearchTextChanged);
     _searchController.dispose();
     _hideOverlay(); // 隱藏翻譯結果的 Overlay
